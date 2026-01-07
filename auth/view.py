@@ -8,7 +8,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 
 from users.services import get_user_capabilities
-from users.serializers import UserSerializer
+from dahoo.users.api.serializers import UserSerializer
 
 
 class LoginAPIView(APIView):
