@@ -17,4 +17,11 @@ class UserAdmin(BaseUserAdmin):
         ('Dates', {'fields': ('created_at', 'updated_at')}),
     )
     
+    add_fieldsets = (
+        (None, {
+            'classes': ('wide',),
+            'fields': ('phone', 'first_name', 'last_name', 'password1', 'password2'),
+        }),
+    )
+    
     readonly_fields = ('created_at', 'updated_at')
