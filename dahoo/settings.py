@@ -17,6 +17,8 @@ from pathlib import Path
 from datetime import timedelta
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
+
+SECRET_KEY = 'django-insecure-6$d1d9jqfmw-ytnt(mcb9n35^da4axzp$%u-cwd1su#fh8@^t1'
 BASE_DIR = Path(__file__).resolve().parent.parent
 AUTH_USER_MODEL = "users.User"
 
