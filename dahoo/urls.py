@@ -21,5 +21,13 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/v1/users/', include("users.api.urls")),
     path("api/v1/leases/", include("leases.api.urls")),
+    path("api/v1/properties/", include("properties.api.urls")),
+    path("api/v1/payments/", include("payments.api.urls")),
+    path("api/v1/maintenance/", include("maintenance.api.urls")),
+    path("api/v1/listings/", include("listings.api.urls")),
+    path("api/v1/subscriptions/", include("subscriptions.api.urls")),
+    path("api/v1/notifications/", include("notifications.api.urls")),
+    path("api/v1/field-ops/", include("field_ops.api.urls")),
+    path("api/v1/analytics/", include("analytics.api.urls")),
 
 ]
