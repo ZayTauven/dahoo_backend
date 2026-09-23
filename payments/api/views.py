@@ -1,107 +1,94 @@
-from rest_framework import generics, status
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from django.db import transaction
 from django.shortcuts import get_object_or_404
+from drf_spectacular.utils import extend_schema
+from rest_framework import generics, status
+from rest_framework.response import Response
+from rest_framework.views import APIView
 
-from users.api.permissions import HasCapability
-from payments.models import (
-	PaymentMethod,
-	PaymentSchedule,
-	Payment,
-	PaymentAllocation,
-)
+from access.permissions import IsStaffOrReadOnly
+from organizations.scoping import OrganizationScopedMixin
+from payments.models import Payment, PaymentMethod, PaymentSchedule
+from payments.services import allocate_payment
+
 from .serializers import (
+	AllocationRequestSerializer,
+	PaymentAllocationSerializer,
+	PaymentCreateSerializer,
 	PaymentMethodSerializer,
 	PaymentScheduleSerializer,
 	PaymentSerializer,
-	PaymentCreateSerializer,
-	PaymentAllocationSerializer,
 )
 
 
+# Moyens de paiement : référentiel commun (Wave, Orange Money...), modifiable par le staff Dahoo.
 class PaymentMethodListCreateAPIView(generics.ListCreateAPIView):
-	permission_classes = [IsAuthenticated, HasCapability]
-	required_capability = "payment.method.view"
-	queryset = PaymentMethod.objects.all()
+	permission_classes = [IsStaffOrReadOnly]
+	queryset = PaymentMethod.objects.order_by("label")
 	serializer_class = PaymentMethodSerializer
+	pagination_class = None
 
 
 class PaymentMethodDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
-	permission_classes = [IsAuthenticated, HasCapability]
-	required_capability = "payment.method.view"
+	permission_classes = [IsStaffOrReadOnly]
 	queryset = PaymentMethod.objects.all()
 	serializer_class = PaymentMethodSerializer
 
 
-class PaymentScheduleListAPIView(generics.ListAPIView):
-	permission_classes = [IsAuthenticated, HasCapability]
-	required_capability = "payment.schedule.view"
+class PaymentScheduleListCreateAPIView(OrganizationScopedMixin, generics.ListCreateAPIView):
+	capability_resource = "payment.schedule"
+	queryset = PaymentSchedule.objects.order_by("due_date")
 	serializer_class = PaymentScheduleSerializer
 
-	def get_queryset(self):
-		# return schedules related to contracts owned by the user
-		user = self.request.user
-		return PaymentSchedule.objects.filter(
-			models.Q(lease_contract__owner=user) | models.Q(sale_contract__owner=user)
-		)
+	def perform_create(self, serializer):
+		serializer.save(organization=self.organization)
 
 
-class PaymentScheduleDetailAPIView(generics.RetrieveAPIView):
-	permission_classes = [IsAuthenticated, HasCapability]
-	required_capability = "payment.schedule.view"
+class PaymentScheduleDetailAPIView(OrganizationScopedMixin, generics.RetrieveUpdateDestroyAPIView):
+	capability_resource = "payment.schedule"
 	queryset = PaymentSchedule.objects.all()
 	serializer_class = PaymentScheduleSerializer
 
 
-class PaymentListCreateAPIView(generics.ListCreateAPIView):
-	permission_classes = [IsAuthenticated, HasCapability]
-	required_capability = "payment.view"
-	serializer_class = PaymentSerializer
-
-	def get_queryset(self):
-		# Payments made by the user
-		return Payment.objects.filter(payer=self.request.user)
+class PaymentListCreateAPIView(OrganizationScopedMixin, generics.ListCreateAPIView):
+	capability_resource = "payment"
+	queryset = Payment.objects.prefetch_related("allocations").order_by("-payment_date")
 
 	def get_serializer_class(self):
 		if self.request.method == "POST":
 			return PaymentCreateSerializer
 		return PaymentSerializer
 
-	def perform_create(self, serializer):
-		serializer.save(payer=self.request.user)
+	@extend_schema(request=PaymentCreateSerializer, responses={201: PaymentSerializer})
+	def post(self, request, *args, **kwargs):
+		return super().post(request, *args, **kwargs)
+
+	@transaction.atomic
+	def create(self, request, *args, **kwargs):
+		serializer = self.get_serializer(data=request.data)
+		serializer.is_valid(raise_exception=True)
+		allocations = serializer.validated_data.pop("allocations", [])
+		payment = serializer.save(organization=self.organization, recorded_by=request.user)
+		allocate_payment(payment, allocations)
+		data = PaymentSerializer(payment, context=self.get_serializer_context()).data
+		return Response(data, status=status.HTTP_201_CREATED)
 
 
-class PaymentDetailAPIView(generics.RetrieveAPIView):
-	permission_classes = [IsAuthenticated, HasCapability]
-	required_capability = "payment.view"
-	queryset = Payment.objects.all()
+class PaymentDetailAPIView(OrganizationScopedMixin, generics.RetrieveAPIView):
+	capability_resource = "payment"
+	queryset = Payment.objects.prefetch_related("allocations")
 	serializer_class = PaymentSerializer
 
 
-class PaymentAllocateAPIView(APIView):
-	permission_classes = [IsAuthenticated, HasCapability]
+class PaymentAllocateAPIView(OrganizationScopedMixin, APIView):
 	required_capability = "payment.allocate"
 
+	@extend_schema(request=AllocationRequestSerializer, responses={201: PaymentAllocationSerializer(many=True)})
 	def post(self, request, pk):
-		payment = get_object_or_404(Payment, pk=pk, payer=request.user)
-		allocations = request.data.get("allocations", [])
-		created = []
-		for a in allocations:
-			schedule_id = a.get("schedule_id")
-			amount = a.get("amount")
-			schedule = get_object_or_404(PaymentSchedule, pk=schedule_id)
-			alloc = PaymentAllocation.objects.create(
-				payment=payment,
-				schedule=schedule,
-				allocated_amount=amount,
-			)
-			# mark schedule paid if allocated covers amount_due
-			total_alloc = sum([float(x.allocated_amount) for x in schedule.allocations.all()])
-			if total_alloc >= float(schedule.amount_due):
-				schedule.is_paid = True
-				schedule.save()
-			created.append(PaymentAllocationSerializer(alloc).data)
-
-		return Response({"allocations": created}, status=status.HTTP_201_CREATED)
-
+		payment = get_object_or_404(Payment, pk=pk, organization=self.organization)
+		serializer = AllocationRequestSerializer(data=request.data, context={"request": request})
+		serializer.is_valid(raise_exception=True)
+		created = allocate_payment(payment, serializer.validated_data["allocations"])
+		return Response(
+			{"allocations": PaymentAllocationSerializer(created, many=True).data},
+			status=status.HTTP_201_CREATED,
+		)

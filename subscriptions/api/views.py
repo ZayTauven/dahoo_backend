@@ -1,59 +1,50 @@
 from rest_framework import generics
-from rest_framework.permissions import IsAuthenticated
-from django.shortcuts import get_object_or_404
 
-from users.api.permissions import HasCapability
-from subscriptions.models import SubscriptionPlan, Subscription, SubscriptionPayment
+from access.permissions import IsStaffOrReadOnly
+from organizations.scoping import OrganizationScopedMixin
+from subscriptions.models import Subscription, SubscriptionPayment, SubscriptionPlan
+
 from .serializers import (
+	SubscriptionPaymentSerializer,
 	SubscriptionPlanSerializer,
 	SubscriptionSerializer,
-	SubscriptionCreateSerializer,
-	SubscriptionPaymentSerializer,
 )
 
 
+# Catalogue des offres : lisible par tous, géré par le staff Dahoo.
 class SubscriptionPlanListCreateAPIView(generics.ListCreateAPIView):
-	permission_classes = [IsAuthenticated, HasCapability]
-	required_capability = "subscription.plan.view"
-	queryset = SubscriptionPlan.objects.all()
+	permission_classes = [IsStaffOrReadOnly]
+	queryset = SubscriptionPlan.objects.order_by("price")
 	serializer_class = SubscriptionPlanSerializer
+	pagination_class = None
+
+	def get_queryset(self):
+		queryset = super().get_queryset()
+		return queryset if self.request.user.is_staff else queryset.filter(active=True)
 
 
 class SubscriptionPlanDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
-	permission_classes = [IsAuthenticated, HasCapability]
-	required_capability = "subscription.plan.view"
+	permission_classes = [IsStaffOrReadOnly]
 	queryset = SubscriptionPlan.objects.all()
 	serializer_class = SubscriptionPlanSerializer
 
 
-class SubscriptionListCreateAPIView(generics.ListCreateAPIView):
-	permission_classes = [IsAuthenticated, HasCapability]
+# L'abonnement d'une organisation est attribué par le staff Dahoo (admin), après paiement :
+# l'API l'expose en lecture seule pour éviter qu'un client s'attribue lui-même une offre.
+class SubscriptionListAPIView(OrganizationScopedMixin, generics.ListAPIView):
 	required_capability = "subscription.view"
-
-	def get_queryset(self):
-		return Subscription.objects.filter(owner=self.request.user)
-
-	def get_serializer_class(self):
-		if self.request.method == "POST":
-			return SubscriptionCreateSerializer
-		return SubscriptionSerializer
-
-	def perform_create(self, serializer):
-		serializer.save(owner=self.request.user)
-
-
-class SubscriptionDetailAPIView(generics.RetrieveAPIView):
-	permission_classes = [IsAuthenticated, HasCapability]
-	required_capability = "subscription.view"
-	queryset = Subscription.objects.all()
+	queryset = Subscription.objects.select_related("plan").order_by("-start_date")
 	serializer_class = SubscriptionSerializer
 
 
-class SubscriptionPaymentListAPIView(generics.ListAPIView):
-	permission_classes = [IsAuthenticated, HasCapability]
-	required_capability = "subscription.payment.view"
+class SubscriptionDetailAPIView(OrganizationScopedMixin, generics.RetrieveAPIView):
+	required_capability = "subscription.view"
+	queryset = Subscription.objects.select_related("plan")
+	serializer_class = SubscriptionSerializer
+
+
+class SubscriptionPaymentListAPIView(OrganizationScopedMixin, generics.ListAPIView):
+	required_capability = "subscription.view"
+	organization_lookup = "subscription__organization"
+	queryset = SubscriptionPayment.objects.order_by("-id")
 	serializer_class = SubscriptionPaymentSerializer
-
-	def get_queryset(self):
-		return SubscriptionPayment.objects.filter(subscription__owner=self.request.user)
-

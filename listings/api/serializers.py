@@ -1,8 +1,15 @@
 from rest_framework import serializers
+
 from listings.models import Listing, Prospect, ProspectInterest
+from organizations.scoping import OrganizationScopedRelatedField
+from properties.models import Unit
 
 
 class ListingSerializer(serializers.ModelSerializer):
+    unit = OrganizationScopedRelatedField(
+        queryset=Unit.objects.all(), organization_lookup="building__property__organization"
+    )
+
     class Meta:
         model = Listing
         fields = [
@@ -17,18 +24,18 @@ class ListingSerializer(serializers.ModelSerializer):
             "published_at",
             "created_at",
         ]
-
-
-class ListingCreateSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Listing
-        fields = ["unit", "title", "description", "listing_type", "price"]
+        # Le statut change uniquement via publier / dépublier.
+        read_only_fields = ["created_by", "status", "published_at", "created_at"]
+        extra_kwargs = {"price": {"min_value": 0}}
 
 
 class ProspectSerializer(serializers.ModelSerializer):
     class Meta:
         model = Prospect
         fields = ["id", "full_name", "phone", "email", "source", "created_at"]
+        read_only_fields = ["created_at"]
+        # L'unicité (organisation, téléphone) est gérée par get_or_create à la création.
+        validators = []
 
 
 class ProspectInterestSerializer(serializers.ModelSerializer):
@@ -40,14 +47,19 @@ class ProspectInterestSerializer(serializers.ModelSerializer):
         read_only_fields = ["listing", "created_at"]
 
     def create(self, validated_data):
+        listing = self.context["listing"]
+        organization = listing.unit.building.property.organization
         prospect_data = validated_data.pop("prospect")
-        phone = prospect_data.get("phone")
-        prospect, _ = Prospect.objects.get_or_create(phone=phone, defaults=prospect_data)
-
-        listing = self.context.get("listing")
-        interest = ProspectInterest.objects.create(
-            listing=listing,
-            prospect=prospect,
-            **validated_data
+        prospect, _ = Prospect.objects.get_or_create(
+            organization=organization,
+            phone=prospect_data["phone"],
+            defaults=prospect_data,
         )
-        return interest
+        return ProspectInterest.objects.create(listing=listing, prospect=prospect, **validated_data)
+
+
+class PublicInterestSerializer(ProspectInterestSerializer):
+    """Réponse publique : on ne renvoie pas les données du prospect."""
+
+    def to_representation(self, instance):
+        return {"id": instance.id, "listing": instance.listing_id, "created_at": instance.created_at}

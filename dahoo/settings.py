@@ -52,6 +52,7 @@ AUTHENTICATION_BACKENDS = [
 
 INSTALLED_APPS = [
     "users",
+    "organizations",
     "access",
     "properties",
     "leases",
@@ -71,14 +72,17 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
 
     
+    "corsheaders",
     "rest_framework",
     "rest_framework_simplejwt.token_blacklist",
+    "drf_spectacular",
 
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -114,10 +118,44 @@ REST_FRAMEWORK = {
         "rest_framework.permissions.IsAuthenticated",
     ),
     "DEFAULT_THROTTLE_CLASSES": (
+        "rest_framework.throttling.AnonRateThrottle",
         "rest_framework.throttling.UserRateThrottle",
+        "rest_framework.throttling.ScopedRateThrottle",
     ),
-
+    "DEFAULT_THROTTLE_RATES": {
+        "anon": os.getenv("THROTTLE_ANON", "60/min"),
+        "user": os.getenv("THROTTLE_USER", "600/min"),
+        "login": os.getenv("THROTTLE_LOGIN", "10/min"),
+        "public_interest": os.getenv("THROTTLE_PUBLIC_INTEREST", "10/hour"),
+    },
+    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
+    "PAGE_SIZE": 25,
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    "EXCEPTION_HANDLER": "dahoo.exceptions.api_exception_handler",
 }
+
+SPECTACULAR_SETTINGS = {
+    "TITLE": "Dahoo API",
+    "DESCRIPTION": (
+        "API de gestion immobilière. Authentification : POST /api/v1/users/login/ puis "
+        "en-tête `Authorization: Bearer <access>`. Si l'utilisateur appartient à plusieurs "
+        "organisations, préciser l'en-tête `X-Organization-ID`."
+    ),
+    "VERSION": "1.0.0",
+    "SERVE_INCLUDE_SCHEMA": False,
+    # Noms explicites des énumérations "status" (sinon suffixes aléatoires dans les types générés côté front)
+    "ENUM_NAME_OVERRIDES": {
+        "UnitStatusEnum": "properties.models.Unit.STATUS_CHOICES",
+        "LeaseStatusEnum": "leases.models.Contract.STATUS_CHOICES",
+        "ListingStatusEnum": "listings.models.Listing.STATUS",
+        "TicketStatusEnum": "maintenance.models.MaintenanceTicket.STATUS_CHOICES",
+        "SubscriptionStatusEnum": "subscriptions.models.Subscription.STATUS",
+        "NotificationStatusEnum": "notifications.models.Notification.STATUS",
+    },
+}
+
+# CORS : origines du front autorisées à appeler l'API (ex. http://localhost:3000)
+CORS_ALLOWED_ORIGINS = env_list("CORS_ALLOWED_ORIGINS", "http://localhost:3000")
 
 
 SIMPLE_JWT = {
@@ -170,7 +208,7 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/6.0/topics/i18n/
 
-LANGUAGE_CODE = 'en-us'
+LANGUAGE_CODE = 'fr-fr'
 
 TIME_ZONE = 'UTC'
 

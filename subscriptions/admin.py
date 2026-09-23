@@ -23,14 +23,14 @@ class SubscriptionPaymentInline(admin.TabularInline):
 
 @admin.register(Subscription)
 class SubscriptionAdmin(admin.ModelAdmin):
-    list_display = ('id', 'owner', 'plan', 'status', 'start_date', 'end_date')
+    list_display = ('id', 'organization', 'plan', 'status', 'start_date', 'end_date')
     list_filter = ('status', 'plan', 'start_date')
-    search_fields = ('owner__phone', 'plan__name')
+    search_fields = ('organization__name', 'plan__name')
     ordering = ('-start_date',)
     readonly_fields = ('created_at',)
     inlines = [SubscriptionPaymentInline]
     fieldsets = (
-        ('Propriétaire', {'fields': ('owner',)}),
+        ('Organisation', {'fields': ('organization',)}),
         ('Plan', {'fields': ('plan', 'status')}),
         ('Dates', {'fields': ('start_date', 'end_date', 'created_at')}),
     )

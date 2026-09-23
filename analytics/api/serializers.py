@@ -1,4 +1,5 @@
 from rest_framework import serializers
+
 from analytics.models import BuildingKPI, FinancialSnapshot, Insight
 
 
@@ -11,7 +12,7 @@ class BuildingKPISerializer(serializers.ModelSerializer):
 class FinancialSnapshotSerializer(serializers.ModelSerializer):
     class Meta:
         model = FinancialSnapshot
-        fields = ["id", "owner", "month", "total_income", "total_expenses", "net_result"]
+        fields = ["id", "month", "total_income", "total_expenses", "net_result"]
 
 
 class InsightSerializer(serializers.ModelSerializer):

@@ -5,8 +5,14 @@ User = settings.AUTH_USER_MODEL
 
 
 class Property(models.Model):
+    organization = models.ForeignKey(
+        "organizations.Organization", on_delete=models.CASCADE, related_name="properties"
+    )
     name = models.CharField(max_length=255)
-    owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name="owned_properties")
+    # Propriétaire (bailleur) du bien, facultatif : l'organisation peut gérer pour le compte d'un tiers.
+    owner = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name="owned_properties"
+    )
     address = models.TextField()
     city = models.CharField(max_length=100)
 

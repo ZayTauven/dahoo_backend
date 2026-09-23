@@ -1,7 +1,8 @@
 from rest_framework import generics
-from rest_framework.permissions import IsAuthenticated
-from users.api.permissions import HasCapability
+
 from analytics.models import BuildingKPI, FinancialSnapshot, Insight
+from organizations.scoping import OrganizationScopedMixin
+
 from .serializers import (
 	BuildingKPISerializer,
 	FinancialSnapshotSerializer,
@@ -9,23 +10,21 @@ from .serializers import (
 )
 
 
-class BuildingKPIListCreateAPIView(generics.ListCreateAPIView):
-	permission_classes = [IsAuthenticated, HasCapability]
+# Les indicateurs sont calculés côté serveur : l'API les expose en lecture seule.
+class BuildingKPIListAPIView(OrganizationScopedMixin, generics.ListAPIView):
 	required_capability = "analytics.kpi.view"
-	queryset = BuildingKPI.objects.all()
+	organization_lookup = "building__property__organization"
+	queryset = BuildingKPI.objects.order_by("-period_start")
 	serializer_class = BuildingKPISerializer
 
 
-class FinancialSnapshotListCreateAPIView(generics.ListCreateAPIView):
-	permission_classes = [IsAuthenticated, HasCapability]
+class FinancialSnapshotListAPIView(OrganizationScopedMixin, generics.ListAPIView):
 	required_capability = "analytics.financial.view"
-	queryset = FinancialSnapshot.objects.all()
+	queryset = FinancialSnapshot.objects.order_by("-month")
 	serializer_class = FinancialSnapshotSerializer
 
 
-class InsightListCreateAPIView(generics.ListCreateAPIView):
-	permission_classes = [IsAuthenticated, HasCapability]
+class InsightListAPIView(OrganizationScopedMixin, generics.ListAPIView):
 	required_capability = "analytics.insight.view"
-	queryset = Insight.objects.all()
+	queryset = Insight.objects.order_by("-created_at")
 	serializer_class = InsightSerializer
-

@@ -1,110 +1,90 @@
-from rest_framework import generics, status
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
+from drf_spectacular.utils import extend_schema
+from rest_framework import generics
+from rest_framework.response import Response
+from rest_framework.views import APIView
 
-from users.api.permissions import HasCapability
-from properties.models import Property, Building, Unit
-from .serializers import (
-	PropertySerializer,
-	PropertyCreateSerializer,
-	BuildingSerializer,
-	BuildingCreateSerializer,
-	UnitSerializer,
-	UnitCreateSerializer,
-)
+from organizations.scoping import OrganizationScopedMixin
+from properties.models import Building, Property, Unit
+from subscriptions.services import check_quota
+
+from .serializers import BuildingSerializer, PropertySerializer, UnitSerializer, UnitStatusSerializer
 
 
-class PropertyListCreateAPIView(generics.ListCreateAPIView):
-	permission_classes = [IsAuthenticated, HasCapability]
-	required_capability = "property.view"
-	queryset = Property.objects.all()
-
-	def get_queryset(self):
-		return Property.objects.filter(owner=self.request.user)
-
-	def get_serializer_class(self):
-		if self.request.method == "POST":
-			return PropertyCreateSerializer
-		return PropertySerializer
+class PropertyListCreateAPIView(OrganizationScopedMixin, generics.ListCreateAPIView):
+	capability_resource = "property"
+	queryset = Property.objects.order_by("-created_at")
+	serializer_class = PropertySerializer
 
 	def perform_create(self, serializer):
-		serializer.save(owner=self.request.user)
+		check_quota(self.organization, "property")
+		serializer.save(organization=self.organization)
 
 
-class PropertyDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
-	permission_classes = [IsAuthenticated, HasCapability]
-	required_capability = "property.view"
+class PropertyDetailAPIView(OrganizationScopedMixin, generics.RetrieveUpdateDestroyAPIView):
+	capability_resource = "property"
 	queryset = Property.objects.all()
 	serializer_class = PropertySerializer
 
-	def get_object(self):
-		return get_object_or_404(Property, pk=self.kwargs.get("pk"), owner=self.request.user)
 
-
-class BuildingListCreateAPIView(generics.ListCreateAPIView):
-	permission_classes = [IsAuthenticated, HasCapability]
-	required_capability = "building.view"
+class BuildingListCreateAPIView(OrganizationScopedMixin, generics.ListCreateAPIView):
+	capability_resource = "building"
+	organization_lookup = "property__organization"
+	queryset = Building.objects.order_by("name")
 	serializer_class = BuildingSerializer
 
+	def get_property(self):
+		return get_object_or_404(Property, pk=self.kwargs["property_pk"], organization=self.organization)
+
 	def get_queryset(self):
-		property_pk = self.kwargs.get("property_pk")
-		prop = get_object_or_404(Property, pk=property_pk, owner=self.request.user)
-		return Building.objects.filter(property=prop)
+		return super().get_queryset().filter(property=self.get_property())
 
 	def perform_create(self, serializer):
-		property_pk = self.kwargs.get("property_pk")
-		prop = get_object_or_404(Property, pk=property_pk, owner=self.request.user)
-		serializer.save(property=prop)
+		serializer.save(property=self.get_property())
 
 
-class BuildingDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
-	permission_classes = [IsAuthenticated, HasCapability]
-	required_capability = "building.view"
+class BuildingDetailAPIView(OrganizationScopedMixin, generics.RetrieveUpdateDestroyAPIView):
+	capability_resource = "building"
+	organization_lookup = "property__organization"
 	queryset = Building.objects.all()
 	serializer_class = BuildingSerializer
 
-	def get_object(self):
-		return get_object_or_404(Building, pk=self.kwargs.get("pk"), property__owner=self.request.user)
 
-
-class UnitListCreateAPIView(generics.ListCreateAPIView):
-	permission_classes = [IsAuthenticated, HasCapability]
-	required_capability = "unit.view"
+class UnitListCreateAPIView(OrganizationScopedMixin, generics.ListCreateAPIView):
+	capability_resource = "unit"
+	organization_lookup = "building__property__organization"
+	queryset = Unit.objects.order_by("reference")
 	serializer_class = UnitSerializer
 
+	def get_building(self):
+		return get_object_or_404(
+			Building, pk=self.kwargs["building_pk"], property__organization=self.organization
+		)
+
 	def get_queryset(self):
-		building_pk = self.kwargs.get("building_pk")
-		building = get_object_or_404(Building, pk=building_pk, property__owner=self.request.user)
-		return Unit.objects.filter(building=building)
+		return super().get_queryset().filter(building=self.get_building())
 
 	def perform_create(self, serializer):
-		building_pk = self.kwargs.get("building_pk")
-		building = get_object_or_404(Building, pk=building_pk, property__owner=self.request.user)
+		building = self.get_building()
+		check_quota(self.organization, "unit")
 		serializer.save(building=building)
 
 
-class UnitDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
-	permission_classes = [IsAuthenticated, HasCapability]
-	required_capability = "unit.view"
+class UnitDetailAPIView(OrganizationScopedMixin, generics.RetrieveUpdateDestroyAPIView):
+	capability_resource = "unit"
+	organization_lookup = "building__property__organization"
 	queryset = Unit.objects.all()
 	serializer_class = UnitSerializer
 
-	def get_object(self):
-		return get_object_or_404(Unit, pk=self.kwargs.get("pk"), building__property__owner=self.request.user)
 
-
-class UnitChangeStatusAPIView(APIView):
-	permission_classes = [IsAuthenticated, HasCapability]
+class UnitChangeStatusAPIView(OrganizationScopedMixin, APIView):
 	required_capability = "unit.change_status"
 
+	@extend_schema(request=UnitStatusSerializer, responses=UnitSerializer)
 	def post(self, request, pk):
-		unit = get_object_or_404(Unit, pk=pk, building__property__owner=request.user)
-		status_value = request.data.get("status")
-		if status_value not in dict(Unit.STATUS_CHOICES):
-			return Response({"detail": "Invalid status"}, status=status.HTTP_400_BAD_REQUEST)
-		unit.status = status_value
-		unit.save()
+		unit = get_object_or_404(Unit, pk=pk, building__property__organization=self.organization)
+		serializer = UnitStatusSerializer(data=request.data)
+		serializer.is_valid(raise_exception=True)
+		unit.status = serializer.validated_data["status"]
+		unit.save(update_fields=["status"])
 		return Response(UnitSerializer(unit).data)
-

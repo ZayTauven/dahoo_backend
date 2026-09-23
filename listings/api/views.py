@@ -1,91 +1,92 @@
-from rest_framework import generics, status
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from drf_spectacular.utils import extend_schema
+from rest_framework import generics, status
+from rest_framework.exceptions import ValidationError
+from rest_framework.permissions import AllowAny
+from rest_framework.response import Response
+from rest_framework.views import APIView
 
-from users.api.permissions import HasCapability
-from listings.models import Listing, Prospect, ProspectInterest
-from .serializers import (
-	ListingSerializer,
-	ListingCreateSerializer,
-	ProspectSerializer,
-	ProspectInterestSerializer,
-)
+from listings.models import Listing, ProspectInterest
+from organizations.scoping import OrganizationScopedMixin
+
+from .serializers import ListingSerializer, ProspectInterestSerializer, PublicInterestSerializer
+
+LISTING_ORGANIZATION = "unit__building__property__organization"
 
 
-class ListingListCreateAPIView(generics.ListCreateAPIView):
-	permission_classes = [IsAuthenticated, HasCapability]
-	required_capability = "listing.view"
-	queryset = Listing.objects.all()
+class ListingListCreateAPIView(OrganizationScopedMixin, generics.ListCreateAPIView):
+	capability_resource = "listing"
+	organization_lookup = LISTING_ORGANIZATION
+	queryset = Listing.objects.order_by("-created_at")
 	serializer_class = ListingSerializer
-
-	def get_queryset(self):
-		# basic owner filter — show listings created by the user
-		return Listing.objects.filter(created_by=self.request.user)
-
-	def get_serializer_class(self):
-		if self.request.method == "POST":
-			return ListingCreateSerializer
-		return ListingSerializer
 
 	def perform_create(self, serializer):
 		serializer.save(created_by=self.request.user)
 
 
-class ListingDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
-	permission_classes = [IsAuthenticated, HasCapability]
-	required_capability = "listing.view"
+class ListingDetailAPIView(OrganizationScopedMixin, generics.RetrieveUpdateDestroyAPIView):
+	capability_resource = "listing"
+	organization_lookup = LISTING_ORGANIZATION
 	queryset = Listing.objects.all()
 	serializer_class = ListingSerializer
 
-	def get_object(self):
-		return get_object_or_404(Listing, pk=self.kwargs.get("pk"), created_by=self.request.user)
+
+class ListingStatusAPIView(OrganizationScopedMixin, APIView):
+	allowed_from = ()
+	target_status = None
+
+	def apply(self, listing):
+		listing.status = self.target_status
+
+	@extend_schema(request=None, responses=ListingSerializer)
+	def post(self, request, pk):
+		listing = get_object_or_404(Listing, pk=pk, **{LISTING_ORGANIZATION: self.organization})
+		if listing.status not in self.allowed_from:
+			raise ValidationError({"status": f"Action impossible depuis le statut {listing.get_status_display()}."})
+		self.apply(listing)
+		listing.save(update_fields=["status", "published_at"])
+		return Response(ListingSerializer(listing, context={"request": request}).data)
 
 
-class ListingPublishAPIView(APIView):
-	permission_classes = [IsAuthenticated, HasCapability]
+class ListingPublishAPIView(ListingStatusAPIView):
 	required_capability = "listing.publish"
+	allowed_from = ("DRAFT", "SUSPENDED")
+	target_status = "PUBLISHED"
 
-	def post(self, request, pk):
-		listing = get_object_or_404(Listing, pk=pk, created_by=request.user)
-		listing.status = "PUBLISHED"
+	def apply(self, listing):
+		super().apply(listing)
 		listing.published_at = timezone.now()
-		listing.save()
-		return Response(ListingSerializer(listing).data)
 
 
-class ListingUnpublishAPIView(APIView):
-	permission_classes = [IsAuthenticated, HasCapability]
+class ListingUnpublishAPIView(ListingStatusAPIView):
 	required_capability = "listing.unpublish"
-
-	def post(self, request, pk):
-		listing = get_object_or_404(Listing, pk=pk, created_by=request.user)
-		listing.status = "SUSPENDED"
-		listing.save()
-		return Response(ListingSerializer(listing).data)
+	allowed_from = ("PUBLISHED",)
+	target_status = "SUSPENDED"
 
 
 class ProspectInterestCreateAPIView(APIView):
-	permission_classes = [IsAuthenticated, HasCapability]
-	required_capability = "listing.interest"
+	"""Déclaration d'intérêt publique (site vitrine) sur une annonce publiée."""
 
+	permission_classes = [AllowAny]
+	authentication_classes = []
+	throttle_scope = "public_interest"
+
+	@extend_schema(request=ProspectInterestSerializer, responses={201: dict})
 	def post(self, request, pk):
-		listing = get_object_or_404(Listing, pk=pk)
-		serializer = ProspectInterestSerializer(data=request.data, context={"listing": listing})
+		listing = get_object_or_404(Listing.objects.select_related("unit__building__property"), pk=pk, status="PUBLISHED")
+		serializer = PublicInterestSerializer(data=request.data, context={"listing": listing})
 		serializer.is_valid(raise_exception=True)
 		interest = serializer.save()
-		return Response(ProspectInterestSerializer(interest).data, status=status.HTTP_201_CREATED)
+		return Response(serializer.to_representation(interest), status=status.HTTP_201_CREATED)
 
 
-class ProspectInterestListAPIView(generics.ListAPIView):
-	permission_classes = [IsAuthenticated, HasCapability]
-	required_capability = "listing.view"
-
+class ProspectInterestListAPIView(OrganizationScopedMixin, generics.ListAPIView):
+	required_capability = "listing.interest.view"
+	organization_lookup = "listing__" + LISTING_ORGANIZATION
+	queryset = ProspectInterest.objects.select_related("prospect").order_by("-created_at")
 	serializer_class = ProspectInterestSerializer
 
 	def get_queryset(self):
-		listing = get_object_or_404(Listing, pk=self.kwargs.get("pk"))
-		return ProspectInterest.objects.filter(listing=listing)
-
+		listing = get_object_or_404(Listing, pk=self.kwargs["pk"], **{LISTING_ORGANIZATION: self.organization})
+		return super().get_queryset().filter(listing=listing)

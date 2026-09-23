@@ -1,5 +1,4 @@
 from django.db import models
-from django.conf import settings
 
 
 # Create your models here.
@@ -40,8 +39,8 @@ class Subscription(models.Model):
         ("EXPIRED", "Expiré"),
     ]
 
-    owner = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
+    organization = models.ForeignKey(
+        "organizations.Organization",
         on_delete=models.CASCADE,
         related_name="subscriptions"
     )
@@ -71,15 +70,3 @@ class SubscriptionPayment(models.Model):
         on_delete=models.CASCADE
     )
 
-
-
-def can_create_unit(user):
-    sub = Subscription.objects.filter(
-        owner=user,
-        status="ACTIVE"
-    ).select_related("plan").first()
-
-    if not sub or not sub.plan.max_units:
-        return False
-
-    return user.units.count() < sub.plan.max_units

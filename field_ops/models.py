@@ -6,6 +6,9 @@ User = settings.AUTH_USER_MODEL
 
 # Ce n’est pas un rôle, c’est un profil opérationnel.
 class GuardianProfile(models.Model):
+    organization = models.ForeignKey(
+        "organizations.Organization", on_delete=models.CASCADE, related_name="guardians"
+    )
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     buildings = models.ManyToManyField(Building, related_name="guardians")
 

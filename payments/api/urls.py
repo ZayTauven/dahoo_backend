@@ -2,7 +2,7 @@ from django.urls import path
 from .views import (
     PaymentMethodListCreateAPIView,
     PaymentMethodDetailAPIView,
-    PaymentScheduleListAPIView,
+    PaymentScheduleListCreateAPIView,
     PaymentScheduleDetailAPIView,
     PaymentListCreateAPIView,
     PaymentDetailAPIView,
@@ -13,7 +13,7 @@ urlpatterns = [
     path("methods/", PaymentMethodListCreateAPIView.as_view()),
     path("methods/<int:pk>/", PaymentMethodDetailAPIView.as_view()),
 
-    path("schedules/", PaymentScheduleListAPIView.as_view()),
+    path("schedules/", PaymentScheduleListCreateAPIView.as_view()),
     path("schedules/<int:pk>/", PaymentScheduleDetailAPIView.as_view()),
 
     path("payments/", PaymentListCreateAPIView.as_view()),

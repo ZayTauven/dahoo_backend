@@ -5,7 +5,7 @@ from properties.models import Unit
 User = settings.AUTH_USER_MODEL
 
 # Modèle abstrait pour les contrats de location et de vente
-# Chaque contrat est lié à une unité et à un propriétaire
+# Chaque contrat appartient à une organisation, est lié à une unité et garde son auteur
 # Le type de contrat peut être "LEASE" (location) ou "SALE" (vente)
 # Le statut du contrat peut être "DRAFT", "ACTIVE", "TERMINATED", "COMPLETED", ou "CANCELLED"
 
@@ -24,12 +24,18 @@ class Contract(models.Model):
         default="DRAFT"
     )
 
+    organization = models.ForeignKey(
+        "organizations.Organization",
+        on_delete=models.CASCADE,
+        related_name="%(class)ss"
+    )
+
     unit = models.ForeignKey(Unit, on_delete=models.PROTECT)
 
-    owner = models.ForeignKey(
+    created_by = models.ForeignKey(
         User,
         on_delete=models.PROTECT,
-        related_name="%(class)s_owned"
+        related_name="%(class)s_created"
     )
 
     created_at = models.DateTimeField(auto_now_add=True)

@@ -1,5 +1,4 @@
 from django.db import models
-from django.conf import settings
 
 # Create your models here.
 class BuildingKPI(models.Model):
@@ -17,9 +16,10 @@ class BuildingKPI(models.Model):
 
 
 class FinancialSnapshot(models.Model):
-    owner = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE
+    organization = models.ForeignKey(
+        "organizations.Organization",
+        on_delete=models.CASCADE,
+        related_name="financial_snapshots"
     )
 
     month = models.DateField()
@@ -35,6 +35,12 @@ class Insight(models.Model):
         ("MAINTENANCE_ALERT", "Maintenance excessive"),
         ("UNDERPRICED", "Bien sous-évalué"),
     ]
+
+    organization = models.ForeignKey(
+        "organizations.Organization",
+        on_delete=models.CASCADE,
+        related_name="insights"
+    )
 
     target_type = models.CharField(max_length=50)
     target_id = models.PositiveIntegerField()

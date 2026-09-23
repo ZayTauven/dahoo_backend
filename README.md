@@ -18,8 +18,27 @@ python manage.py createsuperuser
 python manage.py runserver
 ```
 
-L'authentification se fait par numéro de téléphone :
-`POST /api/v1/users/login/` avec `{"phone": "...", "password": "..."}` renvoie les jetons `access` et `refresh`.
+Pour démarrer, créer une organisation et y rattacher le superuser dans l'admin Django
+(`/admin/` → Organizations, rôle `ORG_ADMIN`).
+
+## Utiliser l'API
+
+- Documentation interactive : `/api/docs/` (schéma OpenAPI : `/api/schema/`).
+- Connexion par téléphone : `POST /api/v1/users/login/` avec `{"phone": "...", "password": "..."}`,
+  puis en-tête `Authorization: Bearer <access>`.
+- Toutes les données sont cloisonnées par **organisation** (agence). Un utilisateur membre de plusieurs
+  organisations précise laquelle avec l'en-tête `X-Organization-ID`.
+- Les droits passent par des **capabilities** (`property.view`, `lease.activate`...) portées par le rôle
+  du membre. Le catalogue et les rôles système (`ORG_ADMIN`, `MANAGER`, `ACCOUNTANT`, `VIEWER`) sont
+  définis dans [access/catalog.py](access/catalog.py) et synchronisés automatiquement à chaque `migrate`.
+
+## Tests
+
+```bash
+python manage.py test tests
+```
+
+Les tests tournent sur PostgreSQL (base de test temporaire créée puis détruite).
 
 ## Configuration
 

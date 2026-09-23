@@ -1,10 +1,9 @@
-from rest_framework import serializers
 from django.contrib.auth import authenticate, get_user_model
+from drf_spectacular.utils import extend_schema_field
+from rest_framework import serializers
+
 
 User = get_user_model()
-
-from rest_framework import serializers
-from django.contrib.auth import authenticate
 
 
 class LoginSerializer(serializers.Serializer):
@@ -13,8 +12,9 @@ class LoginSerializer(serializers.Serializer):
 
     def validate(self, attrs):
         user = authenticate(
+            request=self.context.get("request"),
             phone=attrs["phone"],
-            password=attrs["password"]
+            password=attrs["password"],
         )
         if not user:
             raise serializers.ValidationError("Identifiants invalides")
@@ -22,9 +22,29 @@ class LoginSerializer(serializers.Serializer):
         return attrs
 
 
+class MeMembershipSerializer(serializers.Serializer):
+    organization_id = serializers.IntegerField(source="organization.id")
+    organization_name = serializers.CharField(source="organization.name")
+    role = serializers.CharField(source="role.code")
+    role_label = serializers.CharField(source="role.label")
 
 
 class MeSerializer(serializers.ModelSerializer):
+    memberships = serializers.SerializerMethodField()
+
     class Meta:
         model = User
-        fields = ("id", "phone", "first_name", "last_name")
+        fields = ("id", "phone", "email", "first_name", "last_name", "is_superuser", "memberships")
+
+    @extend_schema_field(MeMembershipSerializer(many=True))
+    def get_memberships(self, user):
+        memberships = user.memberships.filter(is_active=True, organization__is_active=True).select_related(
+            "organization", "role"
+        )
+        return MeMembershipSerializer(memberships, many=True).data
+
+
+class MeCapabilitiesSerializer(serializers.Serializer):
+    organization_id = serializers.IntegerField()
+    role = serializers.CharField(allow_null=True)
+    capabilities = serializers.ListField(child=serializers.CharField())

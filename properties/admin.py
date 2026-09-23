@@ -10,8 +10,8 @@ class BuildingInline(admin.TabularInline):
 
 @admin.register(Property)
 class PropertyAdmin(admin.ModelAdmin):
-    list_display = ('name', 'owner', 'city', 'created_at')
-    list_filter = ('city', 'created_at')
+    list_display = ('name', 'organization', 'owner', 'city', 'created_at')
+    list_filter = ('organization', 'city', 'created_at')
     search_fields = ('name', 'address', 'city', 'owner__phone')
     ordering = ('-created_at',)
     inlines = [BuildingInline]

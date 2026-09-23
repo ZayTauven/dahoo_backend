@@ -1,114 +1,56 @@
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
+from drf_spectacular.utils import extend_schema
+from rest_framework import generics
+from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from leases.models import LeaseContract
-from leases.services import (
-    activate_lease,
-    terminate_lease,
-    complete_lease,
-    cancel_lease,
-)
-from leases.api.serializers import (
-    LeaseContractCreateSerializer,
-    LeaseContractSerializer,
-)
-from users.api.permissions import HasCapability
 from leases.services import change_lease_status
+from organizations.scoping import OrganizationScopedMixin
 
-class LeaseActivateAPIView(APIView):
-    permission_classes = [IsAuthenticated, HasCapability]
-    required_capability = "lease.activate"
+from .serializers import LeaseContractSerializer
 
+
+class LeaseListCreateAPIView(OrganizationScopedMixin, generics.ListCreateAPIView):
+    capability_resource = "lease"
+    queryset = LeaseContract.objects.order_by("-created_at")
+    serializer_class = LeaseContractSerializer
+
+    def perform_create(self, serializer):
+        serializer.save(organization=self.organization, created_by=self.request.user, status="DRAFT")
+
+
+class LeaseDetailAPIView(OrganizationScopedMixin, generics.RetrieveAPIView):
+    capability_resource = "lease"
+    queryset = LeaseContract.objects.all()
+    serializer_class = LeaseContractSerializer
+
+
+class LeaseTransitionAPIView(OrganizationScopedMixin, APIView):
+    target_status = None
+
+    @extend_schema(request=None, responses=LeaseContractSerializer)
     def post(self, request, pk):
-        contract = get_object_or_404(LeaseContract, pk=pk)
-        change_lease_status(contract, "ACTIVE")
-        return Response({"status": "activated"})
+        contract = get_object_or_404(LeaseContract, pk=pk, organization=self.organization)
+        contract = change_lease_status(contract, self.target_status)
+        return Response(LeaseContractSerializer(contract, context={"request": request}).data)
 
 
-class LeaseCreateAPIView(APIView):
-    permission_classes = [IsAuthenticated, HasCapability]
-    required_capability = "lease.create"
-
-    def post(self, request):
-        serializer = LeaseContractCreateSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-
-        contract = serializer.save(
-            owner=request.user,
-            status="DRAFT"
-        )
-
-        return Response(
-            LeaseContractSerializer(contract).data,
-            status=201
-        )
-
-
-class LeaseListAPIView(APIView):
-    permission_classes = [IsAuthenticated, HasCapability]
-    required_capability = "lease.view"
-
-    def get(self, request):
-        qs = LeaseContract.objects.filter(owner=request.user)
-        return Response(
-            LeaseContractSerializer(qs, many=True).data
-        )
-
-
-class LeaseActivateAPIView(APIView):
-    permission_classes = [IsAuthenticated, HasCapability]
+class LeaseActivateAPIView(LeaseTransitionAPIView):
     required_capability = "lease.activate"
-
-    def post(self, request, pk):
-        contract = get_object_or_404(
-            LeaseContract,
-            pk=pk,
-            owner=request.user
-        )
-        activate_lease(contract)
-        return Response({"status": "activated"})
+    target_status = "ACTIVE"
 
 
-class LeaseTerminateAPIView(APIView):
-    permission_classes = [IsAuthenticated, HasCapability]
+class LeaseTerminateAPIView(LeaseTransitionAPIView):
     required_capability = "lease.terminate"
-
-    def post(self, request, pk):
-        contract = get_object_or_404(
-            LeaseContract,
-            pk=pk,
-            owner=request.user
-        )
-        terminate_lease(contract)
-        return Response({"status": "terminated"})
+    target_status = "TERMINATED"
 
 
-class LeaseCompleteAPIView(APIView):
-    permission_classes = [IsAuthenticated, HasCapability]
+class LeaseCompleteAPIView(LeaseTransitionAPIView):
     required_capability = "lease.complete"
-
-    def post(self, request, pk):
-        contract = get_object_or_404(
-            LeaseContract,
-            pk=pk,
-            owner=request.user
-        )
-        complete_lease(contract)
-        return Response({"status": "completed"})
+    target_status = "COMPLETED"
 
 
-class LeaseCancelAPIView(APIView):
-    permission_classes = [IsAuthenticated, HasCapability]
+class LeaseCancelAPIView(LeaseTransitionAPIView):
     required_capability = "lease.cancel"
-
-    def post(self, request, pk):
-        contract = get_object_or_404(
-            LeaseContract,
-            pk=pk,
-            owner=request.user
-        )
-        cancel_lease(contract)
-        return Response({"status": "cancelled"})
-
+    target_status = "CANCELLED"

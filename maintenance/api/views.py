@@ -1,107 +1,95 @@
-from rest_framework import generics, status
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
+from drf_spectacular.utils import extend_schema
+from rest_framework import generics, status
+from rest_framework.response import Response
+from rest_framework.views import APIView
 
-from users.api.permissions import HasCapability
+from access.permissions import IsStaffOrReadOnly
 from maintenance.models import (
 	MaintenanceCategory,
-	MaintenanceTicket,
-	MaintenanceAssignment,
 	MaintenanceLog,
+	MaintenanceTicket,
 )
+from organizations.scoping import OrganizationScopedMixin
+
 from .serializers import (
-	MaintenanceCategorySerializer,
-	MaintenanceTicketSerializer,
-	MaintenanceTicketCreateSerializer,
 	MaintenanceAssignmentSerializer,
+	MaintenanceCategorySerializer,
 	MaintenanceLogSerializer,
+	MaintenanceTicketSerializer,
+	TicketStatusSerializer,
 )
 
+TICKET_ORGANIZATION = "unit__building__property__organization"
 
+
+# Catégories : référentiel commun (plomberie, électricité...), modifiable par le staff Dahoo.
 class MaintenanceCategoryListCreateAPIView(generics.ListCreateAPIView):
-	permission_classes = [IsAuthenticated, HasCapability]
-	required_capability = "maintenance.category.view"
-	queryset = MaintenanceCategory.objects.all()
+	permission_classes = [IsStaffOrReadOnly]
+	queryset = MaintenanceCategory.objects.order_by("label")
 	serializer_class = MaintenanceCategorySerializer
+	pagination_class = None
 
 
 class MaintenanceCategoryDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
-	permission_classes = [IsAuthenticated, HasCapability]
-	required_capability = "maintenance.category.view"
+	permission_classes = [IsStaffOrReadOnly]
 	queryset = MaintenanceCategory.objects.all()
 	serializer_class = MaintenanceCategorySerializer
 
 
-class MaintenanceTicketListCreateAPIView(generics.ListCreateAPIView):
-	permission_classes = [IsAuthenticated, HasCapability]
-	required_capability = "maintenance.ticket.view"
-
-	def get_queryset(self):
-		user = self.request.user
-		return MaintenanceTicket.objects.filter(
-			unit__building__property__owner=user
-		)
-
-	def get_serializer_class(self):
-		if self.request.method == "POST":
-			return MaintenanceTicketCreateSerializer
-		return MaintenanceTicketSerializer
+class MaintenanceTicketListCreateAPIView(OrganizationScopedMixin, generics.ListCreateAPIView):
+	capability_resource = "maintenance.ticket"
+	organization_lookup = TICKET_ORGANIZATION
+	queryset = MaintenanceTicket.objects.order_by("-created_at")
+	serializer_class = MaintenanceTicketSerializer
 
 	def perform_create(self, serializer):
 		serializer.save(reported_by=self.request.user)
 
 
-class MaintenanceTicketDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
-	permission_classes = [IsAuthenticated, HasCapability]
-	required_capability = "maintenance.ticket.view"
+class MaintenanceTicketDetailAPIView(OrganizationScopedMixin, generics.RetrieveUpdateDestroyAPIView):
+	capability_resource = "maintenance.ticket"
+	organization_lookup = TICKET_ORGANIZATION
 	queryset = MaintenanceTicket.objects.all()
 	serializer_class = MaintenanceTicketSerializer
 
-	def get_object(self):
-		return get_object_or_404(MaintenanceTicket, pk=self.kwargs.get("pk"), unit__building__property__owner=self.request.user)
 
-
-class MaintenanceTicketChangeStatusAPIView(APIView):
-	permission_classes = [IsAuthenticated, HasCapability]
+class MaintenanceTicketChangeStatusAPIView(OrganizationScopedMixin, APIView):
 	required_capability = "maintenance.ticket.change_status"
 
+	@extend_schema(request=TicketStatusSerializer, responses=MaintenanceTicketSerializer)
 	def post(self, request, pk):
-		ticket = get_object_or_404(MaintenanceTicket, pk=pk, unit__building__property__owner=request.user)
-		status_value = request.data.get("status")
-		if status_value not in dict(MaintenanceTicket.STATUS_CHOICES):
-			return Response({"detail": "Invalid status"}, status=status.HTTP_400_BAD_REQUEST)
-		ticket.status = status_value
-		ticket.save()
-		return Response(MaintenanceTicketSerializer(ticket).data)
+		ticket = get_object_or_404(MaintenanceTicket, pk=pk, **{TICKET_ORGANIZATION: self.organization})
+		serializer = TicketStatusSerializer(data=request.data)
+		serializer.is_valid(raise_exception=True)
+		ticket.status = serializer.validated_data["status"]
+		ticket.save(update_fields=["status", "updated_at"])
+		return Response(MaintenanceTicketSerializer(ticket, context={"request": request}).data)
 
 
-class MaintenanceTicketAssignAPIView(APIView):
-	permission_classes = [IsAuthenticated, HasCapability]
+class MaintenanceTicketAssignAPIView(OrganizationScopedMixin, APIView):
 	required_capability = "maintenance.ticket.assign"
 
+	@extend_schema(request=MaintenanceAssignmentSerializer, responses={201: MaintenanceAssignmentSerializer})
 	def post(self, request, pk):
-		ticket = get_object_or_404(MaintenanceTicket, pk=pk, unit__building__property__owner=request.user)
-		assigned_to_id = request.data.get("assigned_to")
-		assigned_to = get_object_or_404(request.user.__class__, pk=assigned_to_id)
-		assignment = MaintenanceAssignment.objects.create(ticket=ticket, assigned_to=assigned_to, assigned_by=request.user)
-		return Response(MaintenanceAssignmentSerializer(assignment).data, status=status.HTTP_201_CREATED)
+		ticket = get_object_or_404(MaintenanceTicket, pk=pk, **{TICKET_ORGANIZATION: self.organization})
+		serializer = MaintenanceAssignmentSerializer(data=request.data, context={"request": request})
+		serializer.is_valid(raise_exception=True)
+		serializer.save(ticket=ticket, assigned_by=request.user)
+		return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
-class MaintenanceLogListCreateAPIView(generics.ListCreateAPIView):
-	permission_classes = [IsAuthenticated, HasCapability]
-	required_capability = "maintenance.log.view"
-
+class MaintenanceLogListCreateAPIView(OrganizationScopedMixin, generics.ListCreateAPIView):
+	capability_resource = "maintenance.log"
+	organization_lookup = "ticket__" + TICKET_ORGANIZATION
+	queryset = MaintenanceLog.objects.order_by("created_at")
 	serializer_class = MaintenanceLogSerializer
 
+	def get_ticket(self):
+		return get_object_or_404(MaintenanceTicket, pk=self.kwargs["pk"], **{TICKET_ORGANIZATION: self.organization})
+
 	def get_queryset(self):
-		ticket_pk = self.kwargs.get("pk")
-		ticket = get_object_or_404(MaintenanceTicket, pk=ticket_pk, unit__building__property__owner=self.request.user)
-		return MaintenanceLog.objects.filter(ticket=ticket)
+		return super().get_queryset().filter(ticket=self.get_ticket())
 
 	def perform_create(self, serializer):
-		ticket_pk = self.kwargs.get("pk")
-		ticket = get_object_or_404(MaintenanceTicket, pk=ticket_pk, unit__building__property__owner=self.request.user)
-		serializer.save(ticket=ticket, user=self.request.user)
-
+		serializer.save(ticket=self.get_ticket(), user=self.request.user)

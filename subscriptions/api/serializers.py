@@ -1,5 +1,6 @@
 from rest_framework import serializers
-from subscriptions.models import SubscriptionPlan, Subscription, SubscriptionPayment
+
+from subscriptions.models import Subscription, SubscriptionPayment, SubscriptionPlan
 
 
 class SubscriptionPlanSerializer(serializers.ModelSerializer):
@@ -9,16 +10,12 @@ class SubscriptionPlanSerializer(serializers.ModelSerializer):
 
 
 class SubscriptionSerializer(serializers.ModelSerializer):
+    plan = SubscriptionPlanSerializer(read_only=True)
+
     class Meta:
         model = Subscription
-        fields = ["id", "owner", "plan", "status", "start_date", "end_date", "created_at"]
-        read_only_fields = ["owner", "created_at"]
-
-
-class SubscriptionCreateSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Subscription
-        fields = ["plan", "start_date", "end_date"]
+        fields = ["id", "plan", "status", "start_date", "end_date", "created_at"]
+        read_only_fields = fields
 
 
 class SubscriptionPaymentSerializer(serializers.ModelSerializer):

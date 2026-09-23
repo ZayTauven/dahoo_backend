@@ -1,11 +1,6 @@
 from rest_framework import serializers
-from access.models import Role, Capability, RoleCapability, UserRole, UserCapability
 
-
-class RoleSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Role
-        fields = ["id", "code", "label"]
+from access.models import Capability, Role
 
 
 class CapabilitySerializer(serializers.ModelSerializer):
@@ -14,19 +9,9 @@ class CapabilitySerializer(serializers.ModelSerializer):
         fields = ["id", "code", "description"]
 
 
-class RoleCapabilitySerializer(serializers.ModelSerializer):
+class RoleSerializer(serializers.ModelSerializer):
+    capabilities = serializers.SlugRelatedField(slug_field="code", many=True, read_only=True)
+
     class Meta:
-        model = RoleCapability
-        fields = ["id", "role", "capability"]
-
-
-class UserRoleSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = UserRole
-        fields = ["id", "user", "role", "active"]
-
-
-class UserCapabilitySerializer(serializers.ModelSerializer):
-    class Meta:
-        model = UserCapability
-        fields = ["id", "user", "capability", "context_type", "context_id"]
+        model = Role
+        fields = ["id", "code", "label", "capabilities"]

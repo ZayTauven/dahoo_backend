@@ -41,6 +41,9 @@ class Listing(models.Model):
 # Puis être lié à un user lors de la conversion
 
 class Prospect(models.Model):
+    organization = models.ForeignKey(
+        "organizations.Organization", on_delete=models.CASCADE, related_name="prospects"
+    )
     full_name = models.CharField(max_length=150)
     phone = models.CharField(max_length=30)
     email = models.EmailField(blank=True, null=True)
@@ -51,6 +54,11 @@ class Prospect(models.Model):
     )
 
     created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["organization", "phone"], name="unique_prospect_phone_per_organization"),
+        ]
 
     def __str__(self):
         return self.full_name

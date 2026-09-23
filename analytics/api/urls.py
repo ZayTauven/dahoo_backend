@@ -1,12 +1,9 @@
 from django.urls import path
-from .views import (
-    BuildingKPIListCreateAPIView,
-    FinancialSnapshotListCreateAPIView,
-    InsightListCreateAPIView,
-)
+
+from .views import BuildingKPIListAPIView, FinancialSnapshotListAPIView, InsightListAPIView
 
 urlpatterns = [
-    path("kpis/", BuildingKPIListCreateAPIView.as_view()),
-    path("snapshots/", FinancialSnapshotListCreateAPIView.as_view()),
-    path("insights/", InsightListCreateAPIView.as_view()),
+    path("kpis/", BuildingKPIListAPIView.as_view()),
+    path("snapshots/", FinancialSnapshotListAPIView.as_view()),
+    path("insights/", InsightListAPIView.as_view()),
 ]

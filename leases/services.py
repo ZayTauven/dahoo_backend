@@ -1,45 +1,46 @@
-from django.core.exceptions import ValidationError
+from django.db import transaction
+from django.utils import timezone
+from rest_framework.exceptions import ValidationError
 
-
+# Transitions autorisées : statut actuel -> statuts possibles
 LEASE_TRANSITIONS = {
-    "DRAFT": ["ACTIVE"],
+    "DRAFT": ["ACTIVE", "CANCELLED"],
     "ACTIVE": ["TERMINATED", "COMPLETED", "CANCELLED"],
     "TERMINATED": ["COMPLETED"],
 }
 
+# Statut du lot selon le statut du bail
+UNIT_STATUS_ON_LEASE = {
+    "ACTIVE": "RENTED",
+    "TERMINATED": "FREE",
+    "COMPLETED": "FREE",
+    "CANCELLED": "FREE",
+}
 
+
+@transaction.atomic
 def change_lease_status(contract, new_status):
-    allowed = LEASE_TRANSITIONS.get(contract.status, [])
-    if new_status not in allowed:
-        raise ValidationError("Transition non autorisée")
+    from leases.models import LeaseContract
+
+    contract = LeaseContract.objects.select_for_update().select_related("unit").get(pk=contract.pk)
+    previous = contract.status
+    if new_status not in LEASE_TRANSITIONS.get(previous, []):
+        raise ValidationError(
+            {"status": f"Transition non autorisée : {contract.get_status_display()} → {new_status}."}
+        )
+
+    if new_status == "ACTIVE":
+        other_active = LeaseContract.objects.filter(unit=contract.unit, status="ACTIVE").exclude(pk=contract.pk)
+        if other_active.exists():
+            raise ValidationError({"unit": "Ce lot a déjà un bail actif."})
+        if contract.signed_at is None:
+            contract.signed_at = timezone.now()
 
     contract.status = new_status
-    contract.save()
+    contract.save(update_fields=["status", "signed_at"])
 
-
-def activate_lease(contract):
-    if contract.status != "DRAFT":
-        raise ValidationError("Seul un contrat brouillon peut être activé")
-    contract.status = "ACTIVE"
-    contract.save()
-
-
-def terminate_lease(contract):
-    if contract.status != "ACTIVE":
-        raise ValidationError("Seul un contrat actif peut être résilié")
-    contract.status = "TERMINATED"
-    contract.save()
-
-
-def complete_lease(contract):
-    if contract.status not in ["ACTIVE", "TERMINATED"]:
-        raise ValidationError("Seuls les contrats actifs ou résiliés peuvent être complétés")
-    contract.status = "COMPLETED"
-    contract.save()
-
-
-def cancel_lease(contract):
-    if contract.status != "ACTIVE":
-        raise ValidationError("Seul un contrat actif peut être annulé")
-    contract.status = "CANCELLED"
-    contract.save()
+    # Un brouillon annulé n'a jamais occupé le lot : on ne touche pas à son statut.
+    if previous != "DRAFT" or new_status == "ACTIVE":
+        contract.unit.status = UNIT_STATUS_ON_LEASE[new_status]
+        contract.unit.save(update_fields=["status"])
+    return contract

@@ -33,6 +33,10 @@ class Notification(models.Model):
 
 
 class NotificationTemplate(models.Model):
+    organization = models.ForeignKey(
+        "organizations.Organization", on_delete=models.CASCADE, related_name="notification_templates"
+    )
+
     EVENT_TYPES = [
         ("RENT_DUE", "Loyer dû"),
         ("PAYMENT_RECEIVED", "Paiement reçu"),
@@ -52,6 +56,10 @@ class NotificationTemplate(models.Model):
 
 
 class AutomationRule(models.Model):
+    organization = models.ForeignKey(
+        "organizations.Organization", on_delete=models.CASCADE, related_name="automation_rules"
+    )
+
     EVENT = [
         ("LEASE_CREATED", "Contrat créé"),
         ("RENT_DUE", "Loyer à échéance"),

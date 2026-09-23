@@ -38,6 +38,10 @@ class PaymentSchedule(models.Model):
         related_name="schedules"
     )
 
+    organization = models.ForeignKey(
+        "organizations.Organization", on_delete=models.CASCADE, related_name="payment_schedules"
+    )
+
     schedule_type = models.CharField(max_length=20, choices=SCHEDULE_TYPE_CHOICES)
 
     due_date = models.DateField()
@@ -47,11 +51,27 @@ class PaymentSchedule(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
 
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(lease_contract__isnull=False, sale_contract__isnull=True)
+                    | models.Q(lease_contract__isnull=True, sale_contract__isnull=False)
+                ),
+                name="schedule_linked_to_exactly_one_contract",
+            ),
+        ]
+
 
 # Modèle pour les paiements effectués
 # Chaque paiement est lié à une méthode de paiement
+# payer = qui a payé (locataire, acquéreur) ; recorded_by = le membre qui l'a saisi
 class Payment(models.Model):
+    organization = models.ForeignKey(
+        "organizations.Organization", on_delete=models.CASCADE, related_name="payments"
+    )
     payer = models.ForeignKey(User, on_delete=models.PROTECT)
+    recorded_by = models.ForeignKey(User, on_delete=models.PROTECT, related_name="recorded_payments")
     amount_paid = models.DecimalField(max_digits=12, decimal_places=2)
 
     payment_method = models.ForeignKey(PaymentMethod, on_delete=models.PROTECT)
