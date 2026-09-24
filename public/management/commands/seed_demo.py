@@ -187,7 +187,8 @@ class Command(BaseCommand):
                     if refresh_photos:
                         for photo in ad.photos.all():
                             photo.delete()
-                    if not ad.photos.exists():
+                    # Pas de photo de maison pour un terrain : la carte affiche une vignette neutre.
+                    if category != "LAND" and not ad.photos.exists():
                         for position in range(3):
                             source = next(photo_cycle)
                             with source.open("rb") as handle:
