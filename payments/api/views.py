@@ -1,4 +1,8 @@
+from decimal import Decimal
+
 from django.db import transaction
+from django.db.models import DecimalField, OuterRef, Subquery, Sum, Value
+from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404
 from django_filters import rest_framework as filters
 from drf_spectacular.utils import extend_schema
@@ -9,11 +13,12 @@ from rest_framework.views import APIView
 from access.permissions import IsStaffOrReadOnly
 from leases.tenants import tenant_name_subquery
 from organizations.scoping import OrganizationScopedMixin
-from payments.models import Payment, PaymentMethod, PaymentSchedule
+from payments.models import Payment, PaymentAllocation, PaymentMethod, PaymentSchedule
 from payments.services import allocate_payment
 
 from .serializers import (
 	AllocationRequestSerializer,
+	AllocationResultSerializer,
 	PaymentAllocationSerializer,
 	PaymentCreateSerializer,
 	PaymentMethodSerializer,
@@ -38,9 +43,18 @@ class PaymentMethodDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
 
 def schedules_with_labels():
 	"""Échéances avec de quoi construire `contract_label` sans requête par ligne."""
+	paid = (
+		PaymentAllocation.objects.filter(schedule=OuterRef("pk"))
+		.values("schedule")
+		.annotate(total=Sum("allocated_amount"))
+		.values("total")
+	)
 	return PaymentSchedule.objects.select_related(
 		"lease_contract__unit", "lease_contract__tenant", "sale_contract__unit", "sale_contract__buyer"
-	).annotate(tenant_profile_name=tenant_name_subquery("lease_contract__tenant"))
+	).annotate(
+		tenant_profile_name=tenant_name_subquery("lease_contract__tenant"),
+		amount_paid=Coalesce(Subquery(paid, output_field=DecimalField(max_digits=12, decimal_places=2)), Value(Decimal("0"))),
+	)
 
 
 class PaymentScheduleFilter(filters.FilterSet):
@@ -127,7 +141,7 @@ class PaymentDetailAPIView(OrganizationScopedMixin, generics.RetrieveAPIView):
 class PaymentAllocateAPIView(OrganizationScopedMixin, APIView):
 	required_capability = "payment.allocate"
 
-	@extend_schema(request=AllocationRequestSerializer, responses={201: PaymentAllocationSerializer(many=True)})
+	@extend_schema(request=AllocationRequestSerializer, responses={201: AllocationResultSerializer})
 	def post(self, request, pk):
 		payment = get_object_or_404(Payment, pk=pk, organization=self.organization)
 		serializer = AllocationRequestSerializer(data=request.data, context={"request": request})

@@ -1,4 +1,5 @@
 from django.db import models
+from django.utils import timezone
 from django.conf import settings
 from leases.models import LeaseContract, SaleContract
 
@@ -75,7 +76,8 @@ class Payment(models.Model):
     amount_paid = models.DecimalField(max_digits=12, decimal_places=2)
 
     payment_method = models.ForeignKey(PaymentMethod, on_delete=models.PROTECT)
-    payment_date = models.DateTimeField(auto_now_add=True)
+    # Date réelle de l'encaissement (saisissable : un paiement peut être enregistré le lendemain).
+    payment_date = models.DateTimeField(default=timezone.now)
 
     reference = models.CharField(max_length=100, blank=True, null=True)
     note = models.TextField(blank=True)

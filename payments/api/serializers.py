@@ -2,6 +2,7 @@ from decimal import Decimal
 
 from django.contrib.auth import get_user_model
 from django.db.models import Q
+from django.utils import timezone
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
@@ -31,15 +32,23 @@ class PaymentScheduleSerializer(serializers.ModelSerializer):
     )
     # « Bail n°12 · Ibrahima Sarr · A101 » ou « Vente n°3 · ... »
     contract_label = serializers.SerializerMethodField()
+    # Montant déjà affecté par des paiements et reste dû (annotés par schedules_with_labels()).
+    amount_paid = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True, default=0)
+    remaining_amount = serializers.SerializerMethodField()
 
     class Meta:
         model = PaymentSchedule
         fields = [
             "id", "lease_contract", "sale_contract", "contract_label", "schedule_type",
-            "due_date", "amount_due", "is_paid", "created_at",
+            "due_date", "amount_due", "amount_paid", "remaining_amount", "is_paid", "created_at",
         ]
         read_only_fields = ["is_paid", "created_at"]
         extra_kwargs = {"amount_due": {"min_value": MIN_AMOUNT}}
+
+    @extend_schema_field(OpenApiTypes.DECIMAL)
+    def get_remaining_amount(self, schedule):
+        paid = getattr(schedule, "amount_paid", None) or Decimal("0")
+        return f"{max(schedule.amount_due - paid, Decimal('0')):.2f}"
 
     @extend_schema_field(OpenApiTypes.STR)
     def get_contract_label(self, schedule):
@@ -75,6 +84,10 @@ class AllocationInputSerializer(serializers.Serializer):
     amount = serializers.DecimalField(max_digits=12, decimal_places=2, min_value=MIN_AMOUNT)
 
 
+class AllocationResultSerializer(serializers.Serializer):
+    allocations = PaymentAllocationSerializer(many=True)
+
+
 class AllocationRequestSerializer(serializers.Serializer):
     allocations = AllocationInputSerializer(many=True, allow_empty=False)
 
@@ -102,8 +115,13 @@ class PaymentSerializer(serializers.ModelSerializer):
             "id", "payer", "payer_name", "amount_paid", "payment_method", "payment_date",
             "reference", "note", "recorded_by", "created_at", "allocations",
         ]
-        read_only_fields = ["payment_date", "recorded_by", "created_at"]
-        extra_kwargs = {"amount_paid": {"min_value": MIN_AMOUNT}}
+        read_only_fields = ["recorded_by", "created_at"]
+        extra_kwargs = {"amount_paid": {"min_value": MIN_AMOUNT}, "payment_date": {"required": False}}
+
+    def validate_payment_date(self, value):
+        if value and value > timezone.now():
+            raise serializers.ValidationError("La date du paiement ne peut pas être dans le futur.")
+        return value
 
     @extend_schema_field(OpenApiTypes.STR)
     def get_payer_name(self, payment):

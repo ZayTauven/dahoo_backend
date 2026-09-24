@@ -1,3 +1,4 @@
+from django.db.models import Case, IntegerField, OuterRef, Subquery, Value, When
 from django.shortcuts import get_object_or_404
 from django_filters import rest_framework as filters
 from drf_spectacular.utils import extend_schema
@@ -7,6 +8,7 @@ from rest_framework.views import APIView
 
 from access.permissions import IsStaffOrReadOnly
 from maintenance.models import (
+	MaintenanceAssignment,
 	MaintenanceCategory,
 	MaintenanceLog,
 	MaintenanceTicket,
@@ -38,8 +40,25 @@ class MaintenanceCategoryDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
 	serializer_class = MaintenanceCategorySerializer
 
 
+PRIORITY_RANK = Case(
+	*(When(priority=code, then=Value(rank)) for rank, (code, _) in enumerate(MaintenanceTicket.PRIORITY_CHOICES, start=1)),
+	output_field=IntegerField(),
+)
+
+
 def tickets_with_labels():
-	return MaintenanceTicket.objects.select_related("unit__building__property", "category")
+	"""Tickets avec libellés, rang de gravité (tri) et affectation en cours, sans requête par ligne."""
+	latest = MaintenanceAssignment.objects.filter(ticket=OuterRef("pk")).order_by("-assigned_at", "-id")
+	return (
+		MaintenanceTicket.objects.select_related("unit__building__property", "category", "reported_by")
+		.annotate(
+			priority_rank=PRIORITY_RANK,
+			current_assignee_id=Subquery(latest.values("assigned_to_id")[:1]),
+			current_assignee_first=Subquery(latest.values("assigned_to__first_name")[:1]),
+			current_assignee_last=Subquery(latest.values("assigned_to__last_name")[:1]),
+			current_assigned_at=Subquery(latest.values("assigned_at")[:1]),
+		)
+	)
 
 
 class TicketFilter(filters.FilterSet):
@@ -58,7 +77,8 @@ class MaintenanceTicketListCreateAPIView(OrganizationScopedMixin, generics.ListC
 	serializer_class = MaintenanceTicketSerializer
 	filterset_class = TicketFilter
 	search_fields = ["description", "unit__reference"]
-	ordering_fields = ["created_at", "updated_at", "priority", "status"]
+	# priority_rank : ordre de gravité (Basse < Moyenne < Haute < Urgente), pas alphabétique.
+	ordering_fields = ["created_at", "updated_at", "priority_rank", "status"]
 
 	def perform_create(self, serializer):
 		serializer.save(reported_by=self.request.user)
@@ -76,7 +96,7 @@ class MaintenanceTicketChangeStatusAPIView(OrganizationScopedMixin, APIView):
 
 	@extend_schema(request=TicketStatusSerializer, responses=MaintenanceTicketSerializer)
 	def post(self, request, pk):
-		ticket = get_object_or_404(MaintenanceTicket, pk=pk, **{TICKET_ORGANIZATION: self.organization})
+		ticket = get_object_or_404(tickets_with_labels(), pk=pk, **{TICKET_ORGANIZATION: self.organization})
 		serializer = TicketStatusSerializer(data=request.data)
 		serializer.is_valid(raise_exception=True)
 		ticket.status = serializer.validated_data["status"]
@@ -89,7 +109,7 @@ class MaintenanceTicketAssignAPIView(OrganizationScopedMixin, APIView):
 
 	@extend_schema(request=MaintenanceAssignmentSerializer, responses={201: MaintenanceAssignmentSerializer})
 	def post(self, request, pk):
-		ticket = get_object_or_404(MaintenanceTicket, pk=pk, **{TICKET_ORGANIZATION: self.organization})
+		ticket = get_object_or_404(tickets_with_labels(), pk=pk, **{TICKET_ORGANIZATION: self.organization})
 		serializer = MaintenanceAssignmentSerializer(data=request.data, context={"request": request})
 		serializer.is_valid(raise_exception=True)
 		serializer.save(ticket=ticket, assigned_by=request.user)
@@ -99,7 +119,7 @@ class MaintenanceTicketAssignAPIView(OrganizationScopedMixin, APIView):
 class MaintenanceLogListCreateAPIView(OrganizationScopedMixin, generics.ListCreateAPIView):
 	capability_resource = "maintenance.log"
 	organization_lookup = "ticket__" + TICKET_ORGANIZATION
-	queryset = MaintenanceLog.objects.order_by("created_at")
+	queryset = MaintenanceLog.objects.select_related("user").order_by("created_at")
 	serializer_class = MaintenanceLogSerializer
 
 	def get_ticket(self):

@@ -66,11 +66,11 @@ class PlatformTests(DahooTestCase):
     def test_extend_trial(self):
         self.org_a.trial_ends_at = timezone.now() - timedelta(days=1)
         self.org_a.save()
-        self.assertEqual(self.api_a.post("/api/v1/leases/tenants/", {"phone": "+221771", "first_name": "a", "last_name": "b"}).status_code, 402)
+        self.assertEqual(self.api_a.post("/api/v1/leases/tenants/", {"phone": "+221771234000", "first_name": "a", "last_name": "b"}).status_code, 402)
         new_end = (timezone.now() + timedelta(days=15)).isoformat()
         response = self.platform.patch(f"{PLATFORM}{self.org_a.id}/", {"trial_ends_at": new_end})
         self.assertEqual(response.json()["access_status"], "TRIAL")
-        self.assertEqual(self.api_a.post("/api/v1/leases/tenants/", {"phone": "+221771", "first_name": "a", "last_name": "b"}).status_code, 201)
+        self.assertEqual(self.api_a.post("/api/v1/leases/tenants/", {"phone": "+221771234000", "first_name": "a", "last_name": "b"}).status_code, 201)
 
     def test_suspend_agency(self):
         self.platform.patch(f"{PLATFORM}{self.org_a.id}/", {"is_active": False})

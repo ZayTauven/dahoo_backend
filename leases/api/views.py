@@ -37,6 +37,7 @@ class LeaseListCreateAPIView(OrganizationScopedMixin, generics.ListCreateAPIView
     queryset = leases_with_labels().order_by("-created_at")
     serializer_class = LeaseContractSerializer
     filterset_class = LeaseFilter
+    search_fields = ["tenant__first_name", "tenant__last_name", "tenant__phone", "unit__reference"]
     ordering_fields = ["start_date", "end_date", "rent_amount", "created_at"]
 
     def perform_create(self, serializer):

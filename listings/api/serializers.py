@@ -6,6 +6,7 @@ from listings.models import Listing, ListingPhoto, Prospect, ProspectInterest
 from listings.photos import ALLOWED_FORMATS, MAX_PHOTO_SIZE, cover_url
 from organizations.scoping import OrganizationScopedRelatedField
 from properties.models import Unit
+from users.phone import validate_phone
 
 
 class ListingSerializer(serializers.ModelSerializer):
@@ -79,6 +80,9 @@ class ProspectSerializer(serializers.ModelSerializer):
         read_only_fields = ["created_at"]
         # L'unicité (organisation, téléphone) est gérée par get_or_create à la création.
         validators = []
+
+    def validate_phone(self, value):
+        return validate_phone(value)
 
 
 class ProspectInterestSerializer(serializers.ModelSerializer):

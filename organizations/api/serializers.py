@@ -5,6 +5,7 @@ from rest_framework import serializers
 from access.models import Role
 from organizations.models import Membership, Organization
 from organizations.services import add_member, validate_new_member
+from users.phone import PhoneField
 from subscriptions.services import get_access_status
 
 User = get_user_model()
@@ -43,7 +44,7 @@ class MembershipSerializer(serializers.ModelSerializer):
 
 
 class NewMemberFieldsMixin(serializers.Serializer):
-    phone = serializers.CharField(max_length=20)
+    phone = PhoneField(max_length=20)
     first_name = serializers.CharField(max_length=100, required=False)
     last_name = serializers.CharField(max_length=100, required=False)
     email = serializers.EmailField(required=False, allow_blank=True)

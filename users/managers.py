@@ -1,12 +1,14 @@
 from django.contrib.auth.models import BaseUserManager
 
+from users.phone import normalize_phone
+
 
 class UserManager(BaseUserManager):
 
     def create_user(self, phone, password=None, **extra_fields):
         if not phone:
             raise ValueError("Le numéro de téléphone est obligatoire")
-        user = self.model(phone=phone, **extra_fields)
+        user = self.model(phone=normalize_phone(phone), **extra_fields)
         user.set_password(password)
         user.save()
         return user

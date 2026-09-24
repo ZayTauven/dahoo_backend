@@ -3,6 +3,7 @@ from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from subscriptions.services import get_access_status
+from users.phone import normalize_phone
 
 
 User = get_user_model()
@@ -15,7 +16,7 @@ class LoginSerializer(serializers.Serializer):
     def validate(self, attrs):
         user = authenticate(
             request=self.context.get("request"),
-            phone=attrs["phone"],
+            phone=normalize_phone(attrs["phone"]),
             password=attrs["password"],
         )
         if not user:

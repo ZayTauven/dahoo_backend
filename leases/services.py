@@ -25,8 +25,9 @@ def change_lease_status(contract, new_status):
     contract = LeaseContract.objects.select_for_update().select_related("unit").get(pk=contract.pk)
     previous = contract.status
     if new_status not in LEASE_TRANSITIONS.get(previous, []):
+        target = dict(LeaseContract.STATUS_CHOICES).get(new_status, new_status)
         raise ValidationError(
-            {"status": f"Transition non autorisée : {contract.get_status_display()} → {new_status}."}
+            {"status": f"Transition non autorisée : {contract.get_status_display()} → {target}."}
         )
 
     if new_status == "ACTIVE":
@@ -39,8 +40,9 @@ def change_lease_status(contract, new_status):
     contract.status = new_status
     contract.save(update_fields=["status", "signed_at"])
 
-    # Un brouillon annulé n'a jamais occupé le lot : on ne touche pas à son statut.
-    if previous != "DRAFT" or new_status == "ACTIVE":
+    # Le lot n'est modifié que si le bail l'occupait ou va l'occuper : un brouillon annulé ne l'a
+    # jamais occupé, et un bail résilié l'a déjà libéré (le lot a pu être reloué entre-temps).
+    if new_status == "ACTIVE" or previous == "ACTIVE":
         contract.unit.status = UNIT_STATUS_ON_LEASE[new_status]
         contract.unit.save(update_fields=["status"])
     return contract

@@ -1,5 +1,6 @@
 """
-Données de démonstration du portail : agences, biens, annonces publiées avec photos.
+Données de démonstration : agences, biens, annonces publiées avec photos, et pour la première agence
+une activité de gestion (locataires, baux, échéances, paiements, maintenance).
 Idempotent (relançable sans doublon). Réservé au développement et aux démonstrations clients.
 """
 
@@ -19,7 +20,10 @@ from organizations.services import add_member
 from properties.models import Building, Property, Unit
 from users.models import User
 
+from ._demo_operations import seed_operations, seed_reference_data
+
 DEMO_PASSWORD = "DahooDemo!2026"
+PHOTO_PATTERNS = ("property-*.webp", "slider-*.webp", "immobilier-01.webp", "immobilier-02.webp")
 
 # (agence, ville, téléphone, administrateur, biens)
 # bien : (nom, adresse, quartier, ville, lat, lng, [lots])
@@ -122,13 +126,19 @@ class Command(BaseCommand):
             default="../dahoo_front/public/images/site",
             help="Dossier des photos à attribuer aux annonces (défaut : visuels du front).",
         )
+        parser.add_argument(
+            "--refresh-photos",
+            action="store_true",
+            help="Remplace les photos des annonces de démonstration (après un changement du jeu de photos).",
+        )
 
     @transaction.atomic
-    def handle(self, photos, **options):
+    def handle(self, photos, refresh_photos=False, **options):
         photo_dir = Path(photos)
+        # Uniquement de vraies photos de biens (les autres visuels du site sont des illustrations,
+        # des monuments étrangers ou des portraits, sans rapport avec une annonce).
         pool = sorted(
-            p for pattern in ("property-*.webp", "immobilier-*.webp", "hotel-home-1*.webp", "slider-*.webp")
-            for p in photo_dir.glob(pattern)
+            p for pattern in PHOTO_PATTERNS for p in photo_dir.glob(pattern)
         )
         if not pool:
             raise CommandError(f"Aucune photo trouvée dans {photo_dir.resolve()}.")
@@ -174,6 +184,9 @@ class Command(BaseCommand):
                                   "price": Decimal(price), "status": "PUBLISHED", "published_at": timezone.now()},
                     )
                     created += was_created
+                    if refresh_photos:
+                        for photo in ad.photos.all():
+                            photo.delete()
                     if not ad.photos.exists():
                         for position in range(3):
                             source = next(photo_cycle)
@@ -182,6 +195,11 @@ class Command(BaseCommand):
                                     listing=ad, position=position, alt=f"{title} — photo {position + 1}",
                                     image=File(handle, name=source.name),
                                 )
+
+        # Partie gestion (baux, loyers, maintenance) pour la première agence de démonstration.
+        seed_reference_data()
+        teranga = Organization.objects.get(name=AGENCIES[0]["name"])
+        seed_operations(teranga, User.objects.get(phone=AGENCIES[0]["admin"][0]))
 
         total = Listing.objects.filter(status="PUBLISHED").count()
         self.stdout.write(self.style.SUCCESS(

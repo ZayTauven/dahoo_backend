@@ -7,6 +7,7 @@ from leases.models import LeaseContract, Tenant
 from leases.tenants import person_name, register_tenant
 from organizations.scoping import OrganizationScopedRelatedField
 from properties.models import Unit
+from users.phone import validate_phone
 
 User = get_user_model()
 
@@ -79,7 +80,7 @@ class TenantSerializer(serializers.ModelSerializer):
         read_only_fields = ["created_at"]
 
     def validate_phone(self, value):
-        value = "".join(value.split())
+        value = validate_phone(value)
         if self.instance is not None and value != self.instance.user.phone:
             raise serializers.ValidationError("Le téléphone d'un locataire ne peut pas être modifié.")
         organization = self.context["request"].organization
