@@ -44,6 +44,9 @@ class ProxyThrottlingTests(DahooTestCase):
         codes = {self.client.get("/api/v1/public/stats/", **as_front()).status_code for _ in range(65)}
         self.assertEqual(codes, {200})
 
+    def test_trusted_writes_without_ip_are_still_throttled(self):
+        self.assertEqual(self.failed_logins(11, **as_front())[-1], 429)
+
     def test_anonymous_public_reads_stay_throttled(self):
         codes = [self.client.get("/api/v1/public/stats/").status_code for _ in range(61)]
         self.assertEqual(codes[-1], 429)

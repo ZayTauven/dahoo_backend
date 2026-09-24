@@ -6,13 +6,15 @@ formulaires) arrivent à Django avec la même adresse IP : sans correction, tous
 les mêmes compteurs. Le serveur Next s'identifie donc avec une clé partagée (INTERNAL_PROXY_KEY) et transmet
 l'IP réelle du visiteur :
 - clé valide + IP du visiteur : le compteur est celui de cette IP ;
-- clé valide sans IP (lectures publiques rendues côté serveur, mises en cache) : pas de limitation ;
+- clé valide sans IP : lectures (GET) non limitées (pages publiques rendues côté serveur, mises en cache) ;
+  les écritures restent limitées sur l'IP de la connexion ;
 - pas de clé ou clé invalide : comportement standard (IP de la connexion), l'en-tête d'IP est ignoré.
 """
 
 from django.conf import settings
 from django.utils.crypto import constant_time_compare
 from rest_framework import throttling
+from rest_framework.permissions import SAFE_METHODS
 
 PROXY_KEY_HEADER = "HTTP_X_DAHOO_PROXY_KEY"
 CLIENT_IP_HEADER = "HTTP_X_DAHOO_CLIENT_IP"
@@ -32,7 +34,8 @@ def forwarded_client_ip(request):
 
 class ProxyAwareThrottleMixin:
     def allow_request(self, request, view):
-        if is_trusted_proxy(request) and forwarded_client_ip(request) is None:
+        trusted_read = request.method in SAFE_METHODS and is_trusted_proxy(request)
+        if trusted_read and forwarded_client_ip(request) is None:
             return True
         return super().allow_request(request, view)
 
