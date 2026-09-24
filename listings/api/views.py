@@ -8,9 +8,9 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import SAFE_METHODS, AllowAny
 from rest_framework.response import Response
-from rest_framework.throttling import AnonRateThrottle, ScopedRateThrottle
 from rest_framework.views import APIView
 
+from dahoo.throttling import AnonRateThrottle, ScopedRateThrottle
 from listings.models import Listing, ListingPhoto, ProspectInterest
 from listings.photos import MAX_PHOTOS_PER_LISTING, with_cover
 from organizations.scoping import OrganizationScopedMixin

@@ -43,6 +43,10 @@ CSRF_TRUSTED_ORIGINS = env_list("CSRF_TRUSTED_ORIGINS")
 
 AUTH_USER_MODEL = "users.User"
 
+# Clé partagée avec le serveur Next.js : lui seul peut transmettre l'IP réelle des visiteurs
+# (voir dahoo/throttling.py). Vide = aucune requête n'est considérée comme venant du front.
+INTERNAL_PROXY_KEY = os.getenv("INTERNAL_PROXY_KEY", "")
+
 # Durée de l'essai gratuit d'une nouvelle organisation (jours)
 TRIAL_DAYS = int(os.getenv("TRIAL_DAYS", "30"))
 
@@ -123,9 +127,9 @@ REST_FRAMEWORK = {
         "rest_framework.permissions.IsAuthenticated",
     ),
     "DEFAULT_THROTTLE_CLASSES": (
-        "rest_framework.throttling.AnonRateThrottle",
-        "rest_framework.throttling.UserRateThrottle",
-        "rest_framework.throttling.ScopedRateThrottle",
+        "dahoo.throttling.AnonRateThrottle",
+        "dahoo.throttling.UserRateThrottle",
+        "dahoo.throttling.ScopedRateThrottle",
     ),
     "DEFAULT_THROTTLE_RATES": {
         "anon": os.getenv("THROTTLE_ANON", "60/min"),
