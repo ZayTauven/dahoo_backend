@@ -1,4 +1,5 @@
 from django.shortcuts import get_object_or_404
+from django_filters import rest_framework as filters
 from drf_spectacular.utils import extend_schema
 from rest_framework import generics, status
 from rest_framework.response import Response
@@ -37,11 +38,27 @@ class MaintenanceCategoryDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
 	serializer_class = MaintenanceCategorySerializer
 
 
+def tickets_with_labels():
+	return MaintenanceTicket.objects.select_related("unit__building__property", "category")
+
+
+class TicketFilter(filters.FilterSet):
+	unit = filters.NumberFilter(field_name="unit_id")
+	category = filters.NumberFilter(field_name="category_id")
+
+	class Meta:
+		model = MaintenanceTicket
+		fields = ["status", "priority", "unit", "category"]
+
+
 class MaintenanceTicketListCreateAPIView(OrganizationScopedMixin, generics.ListCreateAPIView):
 	capability_resource = "maintenance.ticket"
 	organization_lookup = TICKET_ORGANIZATION
-	queryset = MaintenanceTicket.objects.order_by("-created_at")
+	queryset = tickets_with_labels().order_by("-created_at")
 	serializer_class = MaintenanceTicketSerializer
+	filterset_class = TicketFilter
+	search_fields = ["description", "unit__reference"]
+	ordering_fields = ["created_at", "updated_at", "priority", "status"]
 
 	def perform_create(self, serializer):
 		serializer.save(reported_by=self.request.user)
@@ -50,7 +67,7 @@ class MaintenanceTicketListCreateAPIView(OrganizationScopedMixin, generics.ListC
 class MaintenanceTicketDetailAPIView(OrganizationScopedMixin, generics.RetrieveUpdateDestroyAPIView):
 	capability_resource = "maintenance.ticket"
 	organization_lookup = TICKET_ORGANIZATION
-	queryset = MaintenanceTicket.objects.all()
+	queryset = tickets_with_labels()
 	serializer_class = MaintenanceTicketSerializer
 
 

@@ -66,6 +66,7 @@ INSTALLED_APPS = [
     "notifications",
     "field_ops",
     "analytics",
+    "public",
 
     'django.contrib.admin',
     'django.contrib.auth',
@@ -79,6 +80,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "rest_framework_simplejwt.token_blacklist",
     "drf_spectacular",
+    "django_filters",
 
 ]
 
@@ -130,7 +132,14 @@ REST_FRAMEWORK = {
         "user": os.getenv("THROTTLE_USER", "600/min"),
         "login": os.getenv("THROTTLE_LOGIN", "10/min"),
         "public_interest": os.getenv("THROTTLE_PUBLIC_INTEREST", "10/hour"),
+        "demo_request": os.getenv("THROTTLE_DEMO_REQUEST", "5/hour"),
     },
+    # Filtres (django-filter), ?search= et ?ordering= : actifs sur les vues qui les déclarent.
+    "DEFAULT_FILTER_BACKENDS": (
+        "django_filters.rest_framework.DjangoFilterBackend",
+        "dahoo.filters.SearchFilter",
+        "dahoo.filters.OrderingFilter",
+    ),
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 25,
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
@@ -154,6 +163,9 @@ SPECTACULAR_SETTINGS = {
         "TicketStatusEnum": "maintenance.models.MaintenanceTicket.STATUS_CHOICES",
         "SubscriptionStatusEnum": "subscriptions.models.Subscription.STATUS",
         "NotificationStatusEnum": "notifications.models.Notification.STATUS",
+        "UnitCategoryEnum": "properties.models.Unit.CATEGORY_CHOICES",
+        "ListingTypeEnum": "listings.models.Listing.LISTING_TYPE",
+        "UnitsRangeEnum": "public.models.DemoRequest.UNITS_RANGE",
     },
 }
 
@@ -225,6 +237,11 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / "staticfiles"
+
+# Fichiers envoyés (photos des annonces). Servis par Django uniquement en DEBUG :
+# en production, les servir via le serveur web ou un stockage objet.
+MEDIA_URL = "media/"
+MEDIA_ROOT = BASE_DIR / "media"
 
 
 # Sécurité en production (actif dès que DEBUG=False)

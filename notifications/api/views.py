@@ -22,6 +22,7 @@ from .serializers import (
 class NotificationListAPIView(generics.ListAPIView):
 	permission_classes = [IsAuthenticated]
 	serializer_class = NotificationSerializer
+	queryset = Notification.objects.none()  # Modèle de référence pour le schéma OpenAPI (le vrai queryset dépend de la requête).
 
 	def get_queryset(self):
 		return Notification.objects.filter(user=self.request.user).order_by("-created_at")
@@ -38,6 +39,7 @@ class NotificationDetailAPIView(generics.RetrieveAPIView):
 class InAppNotificationListAPIView(generics.ListAPIView):
 	permission_classes = [IsAuthenticated]
 	serializer_class = InAppNotificationSerializer
+	queryset = InAppNotification.objects.none()  # Modèle de référence pour le schéma OpenAPI (le vrai queryset dépend de la requête).
 
 	def get_queryset(self):
 		return InAppNotification.objects.filter(user=self.request.user).order_by("-created_at")

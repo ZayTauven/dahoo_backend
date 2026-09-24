@@ -4,6 +4,7 @@ from .views import (
 	PropertyDetailAPIView,
 	BuildingListCreateAPIView,
 	BuildingDetailAPIView,
+	UnitListAPIView,
 	UnitListCreateAPIView,
 	UnitDetailAPIView,
 	UnitChangeStatusAPIView,
@@ -17,6 +18,7 @@ urlpatterns = [
 	path("buildings/<int:pk>/", BuildingDetailAPIView.as_view()),
 
 	path("buildings/<int:building_pk>/units/", UnitListCreateAPIView.as_view()),
+	path("units/", UnitListAPIView.as_view()),
 	path("units/<int:pk>/", UnitDetailAPIView.as_view()),
 	path("units/<int:pk>/status/", UnitChangeStatusAPIView.as_view()),
 ]

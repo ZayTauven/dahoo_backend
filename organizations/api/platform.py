@@ -14,6 +14,7 @@ from access.models import Role
 from access.permissions import IsPlatformAdmin
 from organizations.models import Membership, Organization
 from organizations.services import add_member, validate_new_member
+from public.models import DemoRequest
 from subscriptions.models import Subscription, SubscriptionPlan
 from subscriptions.services import get_access_status
 
@@ -82,6 +83,18 @@ class PlatformSubscriptionSerializer(serializers.ModelSerializer):
         return attrs
 
 
+class PlatformDemoRequestSerializer(serializers.ModelSerializer):
+    """Demande de démo reçue par la vitrine ; seul `handled` est modifiable."""
+
+    class Meta:
+        model = DemoRequest
+        fields = [
+            "id", "agency_name", "contact_name", "phone", "email", "city",
+            "units_range", "message", "created_at", "handled",
+        ]
+        read_only_fields = [field for field in fields if field != "handled"]
+
+
 # --- Vues
 
 
@@ -129,6 +142,7 @@ class PlatformOrganizationMembersAPIView(generics.ListAPIView):
 
     permission_classes = [IsPlatformAdmin]
     serializer_class = MembershipSerializer
+    queryset = Membership.objects.none()  # Modèle de référence pour le schéma OpenAPI (le vrai queryset dépend de la requête).
 
     def get_queryset(self):
         return Membership.objects.filter(organization_id=self.kwargs["pk"]).select_related("user", "role").order_by("id")
@@ -139,6 +153,7 @@ class PlatformSubscriptionListCreateAPIView(generics.ListCreateAPIView):
 
     permission_classes = [IsPlatformAdmin]
     serializer_class = PlatformSubscriptionSerializer
+    queryset = Subscription.objects.none()  # Modèle de référence pour le schéma OpenAPI (le vrai queryset dépend de la requête).
 
     def get_organization(self):
         return get_object_or_404(Organization, pk=self.kwargs["pk"])
@@ -156,3 +171,22 @@ class PlatformSubscriptionDetailAPIView(generics.RetrieveUpdateAPIView):
     permission_classes = [IsPlatformAdmin]
     serializer_class = PlatformSubscriptionSerializer
     queryset = Subscription.objects.all()
+
+
+class PlatformDemoRequestListAPIView(generics.ListAPIView):
+    """Demandes de démo de la vitrine (filtre ?handled=, recherche ?search=), les plus récentes d'abord."""
+
+    permission_classes = [IsPlatformAdmin]
+    serializer_class = PlatformDemoRequestSerializer
+    queryset = DemoRequest.objects.order_by("-created_at")
+    filterset_fields = ["handled", "units_range"]
+    search_fields = ["agency_name", "contact_name", "phone", "email", "city"]
+
+
+class PlatformDemoRequestDetailAPIView(generics.RetrieveUpdateAPIView):
+    """Marquer une demande comme traitée (PATCH {"handled": true})."""
+
+    permission_classes = [IsPlatformAdmin]
+    serializer_class = PlatformDemoRequestSerializer
+    queryset = DemoRequest.objects.all()
+    http_method_names = ["get", "patch", "head", "options"]

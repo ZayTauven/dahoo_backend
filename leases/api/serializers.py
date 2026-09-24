@@ -1,8 +1,10 @@
 from django.contrib.auth import get_user_model
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from leases.models import LeaseContract, Tenant
-from leases.tenants import register_tenant
+from leases.tenants import person_name, register_tenant
 from organizations.scoping import OrganizationScopedRelatedField
 from properties.models import Unit
 
@@ -17,6 +19,9 @@ class LeaseContractSerializer(serializers.ModelSerializer):
     tenant = OrganizationScopedRelatedField(
         queryset=User.objects.all(), organization_lookup="tenant_profiles__organization"
     )
+    # Libellés en lecture seule, pour éviter au front une requête par ligne.
+    unit_label = serializers.CharField(source="unit.label", read_only=True)
+    tenant_name = serializers.SerializerMethodField()
 
     class Meta:
         model = LeaseContract
@@ -24,7 +29,9 @@ class LeaseContractSerializer(serializers.ModelSerializer):
             "id",
             "status",
             "unit",
+            "unit_label",
             "tenant",
+            "tenant_name",
             "start_date",
             "end_date",
             "rent_amount",
@@ -41,6 +48,10 @@ class LeaseContractSerializer(serializers.ModelSerializer):
             "charges_amount": {"min_value": 0},
             "deposit_amount": {"min_value": 0},
         }
+
+    @extend_schema_field(OpenApiTypes.STR)
+    def get_tenant_name(self, contract):
+        return person_name(contract, "tenant_profile_name", contract.tenant, contract.organization_id)
 
     def validate(self, attrs):
         start, end = attrs.get("start_date"), attrs.get("end_date")

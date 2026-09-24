@@ -23,13 +23,17 @@ class MaintenanceTicketSerializer(serializers.ModelSerializer):
     unit = OrganizationScopedRelatedField(
         queryset=Unit.objects.all(), organization_lookup="building__property__organization"
     )
+    unit_label = serializers.CharField(source="unit.label", read_only=True)
+    category_label = serializers.CharField(source="category.label", read_only=True, allow_null=True)
 
     class Meta:
         model = MaintenanceTicket
         fields = [
             "id",
             "unit",
+            "unit_label",
             "category",
+            "category_label",
             "reported_by",
             "description",
             "priority",

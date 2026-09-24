@@ -33,11 +33,18 @@ class SubscriptionRequired(APIException):
     default_code = "subscription_required"
 
 
-def get_active_subscription(organization):
+def active_subscriptions():
+    """Abonnements en cours aujourd'hui (actifs, commencés, non terminés)."""
     today = timezone.localdate()
+    return Subscription.objects.filter(status="ACTIVE", start_date__lte=today).filter(
+        Q(end_date__isnull=True) | Q(end_date__gte=today)
+    )
+
+
+def get_active_subscription(organization):
     return (
-        Subscription.objects.filter(organization=organization, status="ACTIVE", start_date__lte=today)
-        .filter(Q(end_date__isnull=True) | Q(end_date__gte=today))
+        active_subscriptions()
+        .filter(organization=organization)
         .select_related("plan")
         .order_by("-start_date")
         .first()
@@ -68,6 +75,18 @@ def get_access_status(organization):
     if organization.trial_ends_at > timezone.now():
         return ACCESS_TRIAL
     return ACCESS_EXPIRED
+
+
+def with_access(organizations):
+    """
+    Filtre en base équivalent à `get_access_status(org) != EXPIRED` : organisation interne,
+    essai en cours ou abonnement en cours (utilisé par le portail public).
+    """
+    return organizations.filter(
+        Q(is_internal=True)
+        | Q(trial_ends_at__gt=timezone.now())
+        | Q(pk__in=active_subscriptions().values("organization"))
+    )
 
 
 def ensure_write_access(organization):

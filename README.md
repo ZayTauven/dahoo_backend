@@ -52,6 +52,50 @@ spécifique, créer un nouveau rôle plutôt que modifier un rôle système.
   `access_status` (`TRIAL`, `ACTIVE`, `EXPIRED`) sur `/users/me/` et `/organizations/current/`. Le staff peut
   prolonger un essai (`trial_ends_at`) ou attribuer un abonnement depuis l'admin.
 
+## Espace agence : listes
+
+Les listes acceptent des filtres (`?status=`, `?unit=`...), `?search=` et `?ordering=` (préfixe `-`
+pour l'ordre décroissant) sur les champs déclarés par chaque vue, visibles dans `/api/docs/`. Exemples :
+`/leases/?status=ACTIVE&tenant=12`, `/payments/schedules/?is_paid=false&due_date_before=2026-10-31`,
+`/payments/payments/?payment_date_after=2026-09-01`, `/properties/properties/?city=dakar&search=teranga`.
+Les réponses portent des libellés en lecture seule (`unit_label`, `tenant_name`, `payer_name`,
+`contract_label`...) pour éviter au front une requête par ligne. `GET /api/v1/properties/units/` liste
+tous les lots de l'organisation (filtres `status`, `category`, `building`, `property`) pour les sélecteurs.
+
+## Photos des annonces (médias)
+
+- `GET|POST /api/v1/listings/<id>/photos/` : liste et envoi (multipart, champ `image`, plus `alt` et
+  `position` facultatifs). JPEG, PNG ou WebP, 8 Mo et 20 photos maximum par annonce.
+- `PATCH|DELETE /api/v1/listings/photos/<id>/` : texte alternatif, position, suppression (fichier compris).
+- Droits : `listing.view` en lecture, `listing.update` en écriture. Les URL renvoyées sont absolues.
+
+Les fichiers sont stockés dans `media/` (`MEDIA_ROOT`, non versionné). Django ne les sert qu'avec
+`DEBUG=True` ; en production, les servir par le serveur web (ex. `location /media/` sous Nginx) ou
+un stockage objet.
+
+## API publique (portail d'annonces et vitrine)
+
+`/api/v1/public/` : sans authentification (un en-tête `Authorization` est ignoré), limitée par IP
+(`THROTTLE_ANON`). Seules les annonces **publiées** d'agences **actives** dont l'accès n'a pas expiré
+(essai ou abonnement en cours, organisation interne) sont visibles ; aucune donnée privée n'est exposée
+(locataires, bailleurs, prospects, baux, adresse exacte) et la position est arrondie à 3 décimales.
+
+| Méthode | URL | Rôle |
+|---|---|---|
+| GET | `listings/` | Annonces paginées (`page`, `page_size` ≤ 50). Filtres : `listing_type`, `city`, `category`, `min_price`, `max_price`, `min_bedrooms`, `agency`, `q`. Tri `ordering` : `price`, `-price`, `-published_at` (défaut). |
+| GET | `listings/<id>/` | Fiche : photos, description, contact de l'agence, `similar` (3 annonces du même type et de la même ville). |
+| POST | `listings/<id>/interest/` | Demande de visite (`{"prospect": {"full_name", "phone", "email", "source"}, "message"}`), `THROTTLE_PUBLIC_INTEREST`. |
+| GET | `agencies/`, `agencies/<id>/` | Agences ayant au moins une annonce publique (404 sinon). |
+| GET | `stats/` | Compteurs par type, par catégorie, nombre d'agences, villes. |
+| GET | `plans/` | Offres d'abonnement actives. |
+| POST | `demo-requests/` | Formulaire « demander une démo » (`THROTTLE_DEMO_REQUEST`, 5/heure par défaut). |
+
+Les demandes de démo se traitent dans l'admin Django ou via `GET /api/v1/platform/demo-requests/`
+et `PATCH /api/v1/platform/demo-requests/<id>/` (`{"handled": true}`), réservés à l'équipe Dahoo.
+
+Si le front appelle l'API publique depuis son serveur (rendu Next.js côté serveur), toutes les requêtes
+arrivent de la même IP : augmenter `THROTTLE_ANON` ou faire transmettre l'IP du visiteur par un proxy.
+
 ## Tests
 
 ```bash

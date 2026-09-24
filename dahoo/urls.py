@@ -14,6 +14,8 @@ Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
+from django.conf import settings
+from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
@@ -35,4 +37,8 @@ urlpatterns = [
     path("api/v1/notifications/", include("notifications.api.urls")),
     path("api/v1/field-ops/", include("field_ops.api.urls")),
     path("api/v1/analytics/", include("analytics.api.urls")),
+    path("api/v1/public/", include("public.api.urls")),
 ]
+
+# Photos des annonces servies par Django en développement uniquement (static() ne fait rien si DEBUG=False).
+urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

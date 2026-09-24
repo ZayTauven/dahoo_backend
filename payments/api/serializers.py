@@ -2,9 +2,12 @@ from decimal import Decimal
 
 from django.contrib.auth import get_user_model
 from django.db.models import Q
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from leases.models import LeaseContract, SaleContract
+from leases.tenants import person_name
 from organizations.scoping import OrganizationScopedRelatedField
 from payments.models import Payment, PaymentAllocation, PaymentMethod, PaymentSchedule
 
@@ -26,12 +29,32 @@ class PaymentScheduleSerializer(serializers.ModelSerializer):
     sale_contract = OrganizationScopedRelatedField(
         queryset=SaleContract.objects.all(), required=False, allow_null=True
     )
+    # « Bail n°12 · Ibrahima Sarr · A101 » ou « Vente n°3 · ... »
+    contract_label = serializers.SerializerMethodField()
 
     class Meta:
         model = PaymentSchedule
-        fields = ["id", "lease_contract", "sale_contract", "schedule_type", "due_date", "amount_due", "is_paid", "created_at"]
+        fields = [
+            "id", "lease_contract", "sale_contract", "contract_label", "schedule_type",
+            "due_date", "amount_due", "is_paid", "created_at",
+        ]
         read_only_fields = ["is_paid", "created_at"]
         extra_kwargs = {"amount_due": {"min_value": MIN_AMOUNT}}
+
+    @extend_schema_field(OpenApiTypes.STR)
+    def get_contract_label(self, schedule):
+        if schedule.lease_contract_id:
+            lease = schedule.lease_contract
+            name = person_name(schedule, "tenant_profile_name", lease.tenant, schedule.organization_id)
+            return f"Bail n°{lease.id} · {name} · {lease.unit.reference}"
+        sale = schedule.sale_contract
+        name = f"{sale.buyer.first_name} {sale.buyer.last_name}".strip()
+        return f"Vente n°{sale.id} · {name} · {sale.unit.reference}"
+
+    def update(self, instance, validated_data):
+        # Le contrat peut changer : le nom annoté du locataire ne serait plus à jour.
+        vars(instance).pop("tenant_profile_name", None)
+        return super().update(instance, validated_data)
 
     def validate(self, attrs):
         lease = attrs.get("lease_contract", getattr(self.instance, "lease_contract", None))
@@ -70,16 +93,21 @@ class PayerField(serializers.PrimaryKeyRelatedField):
 
 class PaymentSerializer(serializers.ModelSerializer):
     payer = PayerField()
+    payer_name = serializers.SerializerMethodField()
     allocations = PaymentAllocationSerializer(many=True, read_only=True)
 
     class Meta:
         model = Payment
         fields = [
-            "id", "payer", "amount_paid", "payment_method", "payment_date",
+            "id", "payer", "payer_name", "amount_paid", "payment_method", "payment_date",
             "reference", "note", "recorded_by", "created_at", "allocations",
         ]
         read_only_fields = ["payment_date", "recorded_by", "created_at"]
         extra_kwargs = {"amount_paid": {"min_value": MIN_AMOUNT}}
+
+    @extend_schema_field(OpenApiTypes.STR)
+    def get_payer_name(self, payment):
+        return person_name(payment, "payer_profile_name", payment.payer, payment.organization_id)
 
 
 class PaymentCreateSerializer(PaymentSerializer):

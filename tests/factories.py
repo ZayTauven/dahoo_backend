@@ -1,14 +1,19 @@
 import itertools
 from decimal import Decimal
+from io import BytesIO
 
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import override_settings
+from django.utils import timezone
+from PIL import Image
 from rest_framework.test import APIClient, APITestCase
 
 from access.models import Role
 from leases.models import LeaseContract
 from leases.tenants import register_tenant
+from listings.models import Listing
 from organizations.models import Membership, Organization
 from payments.models import PaymentMethod, PaymentSchedule
 from properties.models import Building, Property, Unit
@@ -43,10 +48,35 @@ def client_for(user, organization=None):
     return client
 
 
-def make_unit(organization, status="FREE"):
-    prop = Property.objects.create(organization=organization, name="Résidence", address="Rue 1", city="Dakar")
+def make_unit(organization, status="FREE", city="Dakar", neighborhood="", latitude=None, longitude=None, **unit_fields):
+    prop = Property.objects.create(
+        organization=organization, name="Résidence", address="Rue 1", city=city,
+        neighborhood=neighborhood, latitude=latitude, longitude=longitude,
+    )
     building = Building.objects.create(property=prop, name="Bâtiment A")
-    return Unit.objects.create(building=building, reference=f"A{next(_sequence)}", unit_type="T2", surface=60, status=status)
+    fields = {"reference": f"A{next(_sequence)}", "unit_type": "T2", "surface": 60, "status": status, **unit_fields}
+    return Unit.objects.create(building=building, **fields)
+
+
+def make_listing(organization, unit=None, status="PUBLISHED", listing_type="RENT", price="300000", **fields):
+    """Annonce (publiée par défaut) sur un nouveau lot de l'organisation."""
+    unit = unit or make_unit(organization)
+    if status == "PUBLISHED":
+        fields.setdefault("published_at", timezone.now())
+    return Listing.objects.create(
+        unit=unit, created_by=fields.pop("created_by", None) or make_user(),
+        title=fields.pop("title", "Appartement F3"), description=fields.pop("description", "Lumineux"),
+        listing_type=listing_type, price=Decimal(price), status=status, **fields,
+    )
+
+
+def image_file(name="photo.png", image_format="PNG", padding=0):
+    """Petite image générée en mémoire ; `padding` octets ajoutés à la fin pour grossir le fichier."""
+    buffer = BytesIO()
+    Image.new("RGB", (8, 8), (200, 120, 40)).save(buffer, format=image_format)
+    content = buffer.getvalue() + b"\0" * padding
+    content_type = Image.MIME.get(image_format, "application/octet-stream")
+    return SimpleUploadedFile(name, content, content_type=content_type)
 
 
 def make_tenant(organization, phone=None, first_name="Ibrahima", last_name="Sarr"):

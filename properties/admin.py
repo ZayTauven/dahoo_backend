@@ -10,7 +10,7 @@ class BuildingInline(admin.TabularInline):
 
 @admin.register(Property)
 class PropertyAdmin(admin.ModelAdmin):
-    list_display = ('name', 'organization', 'owner', 'city', 'created_at')
+    list_display = ('name', 'organization', 'owner', 'city', 'neighborhood', 'created_at')
     list_filter = ('organization', 'city', 'created_at')
     search_fields = ('name', 'address', 'city', 'owner__phone')
     ordering = ('-created_at',)
@@ -20,7 +20,7 @@ class PropertyAdmin(admin.ModelAdmin):
 class UnitInline(admin.TabularInline):
     model = Unit
     extra = 1
-    fields = ('reference', 'unit_type', 'surface', 'status')
+    fields = ('reference', 'category', 'unit_type', 'surface', 'bedrooms', 'status')
 
 
 @admin.register(Building)
@@ -37,7 +37,7 @@ class BuildingAdmin(admin.ModelAdmin):
 
 @admin.register(Unit)
 class UnitAdmin(admin.ModelAdmin):
-    list_display = ('reference', 'building', 'unit_type', 'surface', 'status')
-    list_filter = ('status', 'building__property')
+    list_display = ('reference', 'building', 'category', 'unit_type', 'surface', 'status')
+    list_filter = ('status', 'category', 'building__property')
     search_fields = ('reference', 'building__name', 'building__property__name')
     ordering = ('building', 'reference')

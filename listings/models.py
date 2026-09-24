@@ -1,4 +1,6 @@
-from django.db import models
+from django.db import models, transaction
+from django.db.models.signals import post_delete
+from django.dispatch import receiver
 from properties.models import Unit
 from django.conf import settings
 
@@ -35,6 +37,26 @@ class Listing(models.Model):
 
     published_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+
+
+# Photos d'une annonce, affichées par `position` croissante : la première sert de couverture.
+class ListingPhoto(models.Model):
+    listing = models.ForeignKey(Listing, on_delete=models.CASCADE, related_name="photos")
+    image = models.ImageField(upload_to="listings/%Y/%m/")
+    alt = models.CharField("texte alternatif", max_length=200, blank=True)
+    position = models.PositiveSmallIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["position", "id"]
+
+
+@receiver(post_delete, sender=ListingPhoto)
+def delete_photo_file(sender, instance, **kwargs):
+    # Supprime le fichier une fois la transaction validée (photo supprimée seule ou avec son annonce).
+    if instance.image:
+        storage, name = instance.image.storage, instance.image.name
+        transaction.on_commit(lambda: storage.delete(name))
 
 
 # Le prospect peut exister sans user au départ
