@@ -159,6 +159,8 @@ SPECTACULAR_SETTINGS = {
     ),
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
+    # Schémas distincts pour les requêtes (sans champs en lecture seule) : types exacts côté front.
+    "COMPONENT_SPLIT_REQUEST": True,
     # Noms explicites des énumérations "status" (sinon suffixes aléatoires dans les types générés côté front)
     "ENUM_NAME_OVERRIDES": {
         "UnitStatusEnum": "properties.models.Unit.STATUS_CHOICES",
