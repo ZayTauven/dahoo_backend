@@ -12,8 +12,8 @@ class MembershipInline(admin.TabularInline):
 
 @admin.register(Organization)
 class OrganizationAdmin(admin.ModelAdmin):
-    list_display = ("name", "city", "phone", "is_active", "trial_ends_at", "created_at")
-    list_filter = ("is_active", "city")
+    list_display = ("name", "city", "phone", "is_active", "is_internal", "trial_ends_at", "created_at")
+    list_filter = ("is_active", "is_internal", "city")
     search_fields = ("name", "phone", "email")
     inlines = [MembershipInline]
 

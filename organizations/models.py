@@ -22,6 +22,9 @@ class Organization(models.Model):
     city = models.CharField(max_length=100, blank=True)
 
     is_active = models.BooleanField(default=True)
+    # Organisation interne de Dahoo (l'éditeur utilise aussi l'application comme une agence) :
+    # jamais soumise à l'essai ni à l'abonnement.
+    is_internal = models.BooleanField(default=False)
     # Fin de la période d'essai : au-delà, sans abonnement actif, l'accès passe en lecture seule.
     trial_ends_at = models.DateTimeField(default=default_trial_end)
     created_at = models.DateTimeField(auto_now_add=True)

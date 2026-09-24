@@ -75,3 +75,51 @@ SYSTEM_ROLES = {
         "capabilities": _VIEW,
     },
 }
+
+
+# Libellés affichés dans l'écran de gestion des rôles (stockés dans Capability.description).
+RESOURCE_LABELS = {
+    "organization": "l'organisation",
+    "member": "les membres de l'équipe",
+    "property": "les biens",
+    "building": "les bâtiments",
+    "unit": "les lots",
+    "tenant": "les locataires",
+    "lease": "les baux",
+    "payment": "les paiements",
+    "payment.schedule": "les échéances",
+    "maintenance.ticket": "les tickets de maintenance",
+    "maintenance.log": "le journal des interventions",
+    "listing": "les annonces",
+    "listing.interest": "les demandes des prospects",
+    "field_ops.guardian": "les gardiens",
+    "field_ops.event": "les événements terrain",
+    "analytics.kpi": "les indicateurs des bâtiments",
+    "analytics.financial": "les synthèses financières",
+    "analytics.insight": "les alertes intelligentes",
+    "notification.template": "les modèles de notification",
+    "notification.rule": "les règles d'automatisation",
+    "subscription": "l'abonnement",
+}
+
+ACTION_LABELS = {"view": "Consulter", "create": "Créer", "update": "Modifier", "delete": "Supprimer"}
+
+SPECIAL_LABELS = {
+    "unit.change_status": "Changer le statut d'un lot",
+    "lease.activate": "Activer un bail",
+    "lease.terminate": "Résilier un bail",
+    "lease.complete": "Clôturer un bail",
+    "lease.cancel": "Annuler un bail",
+    "payment.allocate": "Affecter un paiement aux échéances",
+    "maintenance.ticket.change_status": "Changer le statut d'un ticket",
+    "maintenance.ticket.assign": "Assigner un ticket",
+    "listing.publish": "Publier une annonce",
+    "listing.unpublish": "Dépublier une annonce",
+}
+
+
+def describe(code):
+    if code in SPECIAL_LABELS:
+        return SPECIAL_LABELS[code]
+    resource, action = code.rsplit(".", 1)
+    return f"{ACTION_LABELS[action]} {RESOURCE_LABELS[resource]}"

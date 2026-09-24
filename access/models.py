@@ -1,6 +1,9 @@
 from django.db import models
 
 
+# Rôles communs à toutes les organisations, gérés par l'admin Dahoo (admin Django).
+# Les rôles système (ORG_ADMIN, MANAGER...) sont réalignés sur access/catalog.py à chaque migrate :
+# pour un besoin spécifique, créer un nouveau rôle plutôt que modifier un rôle système.
 class Role(models.Model):
     code = models.CharField(max_length=50, unique=True)
     label = models.CharField(max_length=100)

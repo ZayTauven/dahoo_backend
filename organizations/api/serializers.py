@@ -1,10 +1,10 @@
 from django.contrib.auth import get_user_model
-from django.contrib.auth.password_validation import validate_password
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from access.models import Role
 from organizations.models import Membership, Organization
+from organizations.services import add_member, validate_new_member
 from subscriptions.services import get_access_status
 
 User = get_user_model()
@@ -42,46 +42,26 @@ class MembershipSerializer(serializers.ModelSerializer):
         read_only_fields = ["created_at"]
 
 
-class MembershipCreateSerializer(serializers.Serializer):
-    """
-    Ajoute un membre par numéro de téléphone. Si aucun compte n'existe pour ce numéro,
-    il est créé (prénom, nom et mot de passe requis).
-    """
-
+class NewMemberFieldsMixin(serializers.Serializer):
     phone = serializers.CharField(max_length=20)
     first_name = serializers.CharField(max_length=100, required=False)
     last_name = serializers.CharField(max_length=100, required=False)
     email = serializers.EmailField(required=False, allow_blank=True)
     password = serializers.CharField(write_only=True, required=False)
+
+
+class MembershipCreateSerializer(NewMemberFieldsMixin):
+    """
+    Ajoute un membre par numéro de téléphone. Si aucun compte n'existe pour ce numéro,
+    il est créé (prénom, nom et mot de passe requis).
+    """
+
     role = serializers.SlugRelatedField(slug_field="code", queryset=Role.objects.all())
 
     def validate(self, attrs):
-        organization = self.context["request"].organization
-        user = User.objects.filter(phone=attrs["phone"]).first()
-        if user and Membership.objects.filter(user=user, organization=organization).exists():
-            raise serializers.ValidationError({"phone": "Cet utilisateur est déjà membre de l'organisation."})
-        if user is None:
-            missing = [f for f in ("first_name", "last_name", "password") if not attrs.get(f)]
-            if missing:
-                raise serializers.ValidationError(
-                    {f: "Obligatoire pour créer un nouveau compte." for f in missing}
-                )
-            validate_password(attrs["password"])
-        attrs["existing_user"] = user
+        attrs["existing_user"] = validate_new_member(self.context["request"].organization, attrs)
         return attrs
 
     def create(self, validated_data):
-        user = validated_data["existing_user"]
-        if user is None:
-            user = User.objects.create_user(
-                phone=validated_data["phone"],
-                password=validated_data["password"],
-                first_name=validated_data["first_name"],
-                last_name=validated_data["last_name"],
-                email=validated_data.get("email") or None,
-            )
-        return Membership.objects.create(
-            user=user,
-            organization=self.context["request"].organization,
-            role=validated_data["role"],
-        )
+        role = validated_data.pop("role")
+        return add_member(self.context["request"].organization, role, **validated_data)

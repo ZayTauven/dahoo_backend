@@ -39,10 +39,12 @@ class MeMembershipSerializer(serializers.Serializer):
 
 class MeSerializer(serializers.ModelSerializer):
     memberships = serializers.SerializerMethodField()
+    # Admin Dahoo : accès à l'espace plateforme (/api/v1/platform/)
+    is_platform_admin = serializers.BooleanField(source="is_staff", read_only=True)
 
     class Meta:
         model = User
-        fields = ("id", "phone", "email", "first_name", "last_name", "is_superuser", "memberships")
+        fields = ("id", "phone", "email", "first_name", "last_name", "is_platform_admin", "memberships")
 
     @extend_schema_field(MeMembershipSerializer(many=True))
     def get_memberships(self, user):

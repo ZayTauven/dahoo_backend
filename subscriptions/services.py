@@ -63,7 +63,7 @@ def check_quota(organization, resource):
 
 def get_access_status(organization):
     """ACTIVE (abonnement en cours), TRIAL (essai en cours) ou EXPIRED (lecture seule)."""
-    if get_active_subscription(organization) is not None:
+    if organization.is_internal or get_active_subscription(organization) is not None:
         return ACCESS_ACTIVE
     if organization.trial_ends_at > timezone.now():
         return ACCESS_TRIAL

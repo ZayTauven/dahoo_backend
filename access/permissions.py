@@ -54,6 +54,15 @@ class HasCapability(BasePermission):
         return True
 
 
+class IsPlatformAdmin(BasePermission):
+    """Équipe Dahoo (éditeur du SaaS) : gestion des agences, essais et abonnements."""
+
+    message = "Réservé aux administrateurs de la plateforme Dahoo."
+
+    def has_permission(self, request, view):
+        return bool(request.user and request.user.is_authenticated and request.user.is_staff)
+
+
 class IsStaffOrReadOnly(BasePermission):
     """Données de référence communes à toutes les organisations : lecture pour tous, écriture staff."""
 

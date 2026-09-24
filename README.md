@@ -18,8 +18,22 @@ python manage.py createsuperuser
 python manage.py runserver
 ```
 
-Pour démarrer, créer une organisation et y rattacher le superuser dans l'admin Django
-(`/admin/` → Organizations, rôle `ORG_ADMIN`).
+Puis faire de ce compte l'administrateur Dahoo (plateforme + organisation interne « Dahoo ») :
+
+```bash
+python manage.py setup_dahoo <téléphone>
+```
+
+## Plateforme Dahoo et agences
+
+Dahoo est l'éditeur du SaaS : ses administrateurs (`is_staff`) gèrent les agences depuis
+`/api/v1/platform/` (création d'une agence avec son premier administrateur, prolongation d'essai,
+suspension, abonnements). Dahoo est aussi une agence : l'organisation interne (`is_internal`),
+jamais soumise à l'essai ni à l'abonnement.
+
+Les rôles sont communs à toutes les agences et gérés par l'admin Dahoo dans l'admin Django.
+Les rôles système sont réalignés sur `access/catalog.py` à chaque `migrate` : pour un besoin
+spécifique, créer un nouveau rôle plutôt que modifier un rôle système.
 
 ## Utiliser l'API
 
