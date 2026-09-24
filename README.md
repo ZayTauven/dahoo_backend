@@ -31,6 +31,12 @@ Pour démarrer, créer une organisation et y rattacher le superuser dans l'admin
 - Les droits passent par des **capabilities** (`property.view`, `lease.activate`...) portées par le rôle
   du membre. Le catalogue et les rôles système (`ORG_ADMIN`, `MANAGER`, `ACCOUNTANT`, `VIEWER`) sont
   définis dans [access/catalog.py](access/catalog.py) et synchronisés automatiquement à chaque `migrate`.
+- **Locataires** : `/api/v1/leases/tenants/`. Chaque agence tient sa propre fiche (nom, email, pièce
+  d'identité, notes) ; l'`id` renvoyé est celui attendu par `tenant` (bail) et `payer` (paiement).
+- **Essai gratuit** : une nouvelle organisation dispose de `TRIAL_DAYS` jours (30 par défaut). Ensuite, sans
+  abonnement actif, l'accès passe en lecture seule (écritures refusées en `402`). Le statut est exposé dans
+  `access_status` (`TRIAL`, `ACTIVE`, `EXPIRED`) sur `/users/me/` et `/organizations/current/`. Le staff peut
+  prolonger un essai (`trial_ends_at`) ou attribuer un abonnement depuis l'admin.
 
 ## Tests
 

@@ -1,14 +1,16 @@
+from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import extend_schema
 from rest_framework import generics
+from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from leases.models import LeaseContract
+from leases.models import LeaseContract, Tenant
 from leases.services import change_lease_status
 from organizations.scoping import OrganizationScopedMixin
 
-from .serializers import LeaseContractSerializer
+from .serializers import LeaseContractSerializer, TenantSerializer
 
 
 class LeaseListCreateAPIView(OrganizationScopedMixin, generics.ListCreateAPIView):
@@ -54,3 +56,36 @@ class LeaseCompleteAPIView(LeaseTransitionAPIView):
 class LeaseCancelAPIView(LeaseTransitionAPIView):
     required_capability = "lease.cancel"
     target_status = "CANCELLED"
+
+
+class TenantQuerysetMixin(OrganizationScopedMixin):
+    capability_resource = "tenant"
+    serializer_class = TenantSerializer
+    # Les URLs utilisent l'identifiant du compte, comme les champs `tenant` et `payer`.
+    lookup_field = "user_id"
+    lookup_url_kwarg = "pk"
+
+    def get_queryset(self):
+        organization = self.request.organization
+        return (
+            Tenant.objects.filter(organization=organization)
+            .select_related("user")
+            .annotate(
+                active_leases=Count(
+                    "user__lease_contracts",
+                    filter=Q(user__lease_contracts__organization=organization, user__lease_contracts__status="ACTIVE"),
+                )
+            )
+            .order_by("last_name", "first_name")
+        )
+
+
+class TenantListCreateAPIView(TenantQuerysetMixin, generics.ListCreateAPIView):
+    pass
+
+
+class TenantDetailAPIView(TenantQuerysetMixin, generics.RetrieveUpdateDestroyAPIView):
+    def perform_destroy(self, instance):
+        if LeaseContract.objects.filter(organization=instance.organization, tenant=instance.user).exists():
+            raise ValidationError({"detail": "Ce locataire a des baux : il ne peut pas être supprimé."})
+        instance.delete()

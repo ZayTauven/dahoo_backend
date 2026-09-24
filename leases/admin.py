@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import LeaseContract, SaleContract
+from .models import LeaseContract, SaleContract, Tenant
 
 
 @admin.register(LeaseContract)
@@ -31,3 +31,10 @@ class SaleContractAdmin(admin.ModelAdmin):
         ('Dates', {'fields': ('agreed_date', 'transfer_date', 'signed_at', 'created_at')}),
         ('Statut', {'fields': ('status',)}),
     )
+
+
+@admin.register(Tenant)
+class TenantAdmin(admin.ModelAdmin):
+    list_display = ('first_name', 'last_name', 'user', 'organization', 'created_at')
+    list_filter = ('organization',)
+    search_fields = ('first_name', 'last_name', 'user__phone')

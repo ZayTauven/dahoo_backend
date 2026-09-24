@@ -19,7 +19,8 @@ CAPABILITIES = {
     *_crud("building"),
     *_crud("unit"),
     "unit.change_status",
-    # Contrats
+    # Contrats et locataires
+    *_crud("tenant"),
     *_crud("lease", ("view", "create")),
     "lease.activate",
     "lease.terminate",

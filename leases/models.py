@@ -84,3 +84,30 @@ class SaleContract(Contract):
 
     agreed_date = models.DateField()
     transfer_date = models.DateField(null=True, blank=True)
+
+
+# Fiche locataire propre à une organisation.
+# L'identité saisie (nom, email, pièce...) appartient à l'organisation : une autre agence qui
+# enregistre le même numéro crée sa propre fiche et ne voit jamais celle-ci.
+# `user` est le compte unique associé au téléphone (servira à l'espace locataire).
+class Tenant(models.Model):
+    organization = models.ForeignKey(
+        "organizations.Organization", on_delete=models.CASCADE, related_name="tenants"
+    )
+    user = models.ForeignKey(User, on_delete=models.PROTECT, related_name="tenant_profiles")
+
+    first_name = models.CharField(max_length=100)
+    last_name = models.CharField(max_length=100)
+    email = models.EmailField(blank=True)
+    id_document_number = models.CharField(max_length=50, blank=True, help_text="CNI, passeport...")
+    notes = models.TextField(blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["organization", "user"], name="unique_tenant_per_organization"),
+        ]
+
+    def __str__(self):
+        return f"{self.first_name} {self.last_name}"

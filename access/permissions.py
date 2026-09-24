@@ -2,6 +2,7 @@ from rest_framework.permissions import SAFE_METHODS, BasePermission
 
 from access.services import get_role_capabilities
 from organizations.context import resolve_organization
+from subscriptions.services import ensure_write_access
 
 METHOD_ACTIONS = {
     "GET": "view",
@@ -42,11 +43,15 @@ class HasCapability(BasePermission):
     def has_permission(self, request, view):
         if not (request.user and request.user.is_authenticated):
             return False
-        resolve_organization(request)
-        required = get_required_capability(view, request.method)
-        if required is None or request.user.is_superuser:
+        organization = resolve_organization(request)
+        if request.user.is_superuser:
             return True
-        return required in get_membership_capabilities(request)
+        required = get_required_capability(view, request.method)
+        if required is not None and required not in get_membership_capabilities(request):
+            return False
+        if request.method not in SAFE_METHODS:
+            ensure_write_access(organization)
+        return True
 
 
 class IsStaffOrReadOnly(BasePermission):

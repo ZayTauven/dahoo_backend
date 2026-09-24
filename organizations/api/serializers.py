@@ -1,18 +1,29 @@
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from access.models import Role
 from organizations.models import Membership, Organization
+from subscriptions.services import get_access_status
 
 User = get_user_model()
 
 
 class OrganizationSerializer(serializers.ModelSerializer):
+    access_status = serializers.SerializerMethodField()
+
     class Meta:
         model = Organization
-        fields = ["id", "name", "phone", "email", "address", "city", "is_active", "created_at"]
-        read_only_fields = ["is_active", "created_at"]
+        fields = [
+            "id", "name", "phone", "email", "address", "city",
+            "is_active", "trial_ends_at", "access_status", "created_at",
+        ]
+        read_only_fields = ["is_active", "trial_ends_at", "created_at"]
+
+    @extend_schema_field(serializers.ChoiceField(choices=["ACTIVE", "TRIAL", "EXPIRED"]))
+    def get_access_status(self, obj):
+        return get_access_status(obj)
 
 
 class MemberUserSerializer(serializers.ModelSerializer):

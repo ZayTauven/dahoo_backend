@@ -7,10 +7,14 @@ from .views import (
     LeaseDetailAPIView,
     LeaseListCreateAPIView,
     LeaseTerminateAPIView,
+    TenantDetailAPIView,
+    TenantListCreateAPIView,
 )
 
 urlpatterns = [
     path("", LeaseListCreateAPIView.as_view()),
+    path("tenants/", TenantListCreateAPIView.as_view()),
+    path("tenants/<int:pk>/", TenantDetailAPIView.as_view()),
     path("<int:pk>/", LeaseDetailAPIView.as_view()),
     path("<int:pk>/activate/", LeaseActivateAPIView.as_view()),
     path("<int:pk>/terminate/", LeaseTerminateAPIView.as_view()),

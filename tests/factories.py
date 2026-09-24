@@ -8,6 +8,7 @@ from rest_framework.test import APIClient, APITestCase
 
 from access.models import Role
 from leases.models import LeaseContract
+from leases.tenants import register_tenant
 from organizations.models import Membership, Organization
 from payments.models import PaymentMethod, PaymentSchedule
 from properties.models import Building, Property, Unit
@@ -46,6 +47,12 @@ def make_unit(organization, status="FREE"):
     prop = Property.objects.create(organization=organization, name="Résidence", address="Rue 1", city="Dakar")
     building = Building.objects.create(property=prop, name="Bâtiment A")
     return Unit.objects.create(building=building, reference=f"A{next(_sequence)}", unit_type="T2", surface=60, status=status)
+
+
+def make_tenant(organization, phone=None, first_name="Ibrahima", last_name="Sarr"):
+    """Enregistre un locataire dans l'organisation et renvoie son compte (id attendu par l'API)."""
+    phone = phone or f"+22176{next(_sequence):07d}"
+    return register_tenant(organization, phone=phone, first_name=first_name, last_name=last_name).user
 
 
 def make_lease(organization, unit=None, tenant=None, created_by=None, status="DRAFT"):

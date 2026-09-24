@@ -1,4 +1,4 @@
-from .factories import DahooTestCase, make_lease, make_unit, make_user
+from .factories import DahooTestCase, make_lease, make_tenant, make_unit, make_user
 
 
 class LeaseLifecycleTests(DahooTestCase):
@@ -6,17 +6,28 @@ class LeaseLifecycleTests(DahooTestCase):
         unit = make_unit(self.org_a)
         response = self.api_a.post(
             "/api/v1/leases/",
-            {"unit": unit.id, "tenant": make_user().id, "start_date": "2026-01-01", "rent_amount": "150000"},
+            {"unit": unit.id, "tenant": make_tenant(self.org_a).id, "start_date": "2026-01-01", "rent_amount": "150000"},
         )
         self.assertEqual(response.status_code, 201, response.content)
         self.assertEqual(response.json()["status"], "DRAFT")
         self.assertEqual(response.json()["created_by"], self.admin_a.id)
 
+    def test_tenant_must_be_registered_in_organization(self):
+        unit = make_unit(self.org_a)
+        for tenant in (make_user(), make_tenant(self.org_b)):
+            with self.subTest(tenant=tenant.id):
+                response = self.api_a.post(
+                    "/api/v1/leases/",
+                    {"unit": unit.id, "tenant": tenant.id, "start_date": "2026-01-01", "rent_amount": "1"},
+                )
+                self.assertEqual(response.status_code, 400)
+                self.assertIn("tenant", response.json())
+
     def test_end_date_must_follow_start_date(self):
         unit = make_unit(self.org_a)
         response = self.api_a.post(
             "/api/v1/leases/",
-            {"unit": unit.id, "tenant": make_user().id, "start_date": "2026-01-01", "end_date": "2025-12-31", "rent_amount": "1"},
+            {"unit": unit.id, "tenant": make_tenant(self.org_a).id, "start_date": "2026-01-01", "end_date": "2025-12-31", "rent_amount": "1"},
         )
         self.assertEqual(response.status_code, 400)
 

@@ -43,6 +43,9 @@ CSRF_TRUSTED_ORIGINS = env_list("CSRF_TRUSTED_ORIGINS")
 
 AUTH_USER_MODEL = "users.User"
 
+# Durée de l'essai gratuit d'une nouvelle organisation (jours)
+TRIAL_DAYS = int(os.getenv("TRIAL_DAYS", "30"))
+
 AUTHENTICATION_BACKENDS = [
     "users.auth_backends.PhoneBackend",
 ]

@@ -2,6 +2,8 @@ from django.contrib.auth import authenticate, get_user_model
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
+from subscriptions.services import get_access_status
+
 
 User = get_user_model()
 
@@ -27,6 +29,12 @@ class MeMembershipSerializer(serializers.Serializer):
     organization_name = serializers.CharField(source="organization.name")
     role = serializers.CharField(source="role.code")
     role_label = serializers.CharField(source="role.label")
+    trial_ends_at = serializers.DateTimeField(source="organization.trial_ends_at")
+    access_status = serializers.SerializerMethodField()
+
+    @extend_schema_field(serializers.ChoiceField(choices=["ACTIVE", "TRIAL", "EXPIRED"]))
+    def get_access_status(self, obj):
+        return get_access_status(obj.organization)
 
 
 class MeSerializer(serializers.ModelSerializer):

@@ -1,7 +1,14 @@
+from datetime import timedelta
+
 from django.conf import settings
 from django.db import models
+from django.utils import timezone
 
 User = settings.AUTH_USER_MODEL
+
+
+def default_trial_end():
+    return timezone.now() + timedelta(days=settings.TRIAL_DAYS)
 
 
 # Une organisation est le client de Dahoo (agence, syndic, gestionnaire...).
@@ -15,6 +22,8 @@ class Organization(models.Model):
     city = models.CharField(max_length=100, blank=True)
 
     is_active = models.BooleanField(default=True)
+    # Fin de la période d'essai : au-delà, sans abonnement actif, l'accès passe en lecture seule.
+    trial_ends_at = models.DateTimeField(default=default_trial_end)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
