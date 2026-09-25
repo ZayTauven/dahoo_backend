@@ -22,6 +22,9 @@ class Organization(models.Model):
     city = models.CharField(max_length=100, blank=True)
     # Logo affiché sur le portail public (annuaire, fiche agence, annonces).
     logo = models.ImageField(upload_to="organizations/logos/", blank=True)
+    # Apparence de l'espace agence choisie par ses administrateurs (personnaliseur) : couleur d'accent,
+    # schémas de la barre latérale et de l'en-tête, densité... Validé par organizations/theme.py.
+    theme = models.JSONField(default=dict, blank=True)
 
     is_active = models.BooleanField(default=True)
     # Organisation interne de Dahoo (l'éditeur utilise aussi l'application comme une agence) :

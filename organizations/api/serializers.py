@@ -5,6 +5,7 @@ from rest_framework import serializers
 from access.models import Role
 from organizations.models import Membership, Organization
 from organizations.services import add_member, validate_new_member
+from organizations.theme import OrganizationThemeSerializer
 from users.phone import PhoneField
 from subscriptions.services import get_access_status
 
@@ -13,14 +14,21 @@ User = get_user_model()
 
 class OrganizationSerializer(serializers.ModelSerializer):
     access_status = serializers.SerializerMethodField()
+    theme = OrganizationThemeSerializer(required=False)
 
     class Meta:
         model = Organization
         fields = [
-            "id", "name", "phone", "email", "address", "city", "logo",
+            "id", "name", "phone", "email", "address", "city", "logo", "theme",
             "is_active", "trial_ends_at", "access_status", "created_at",
         ]
         read_only_fields = ["logo", "is_active", "trial_ends_at", "created_at"]
+
+    def update(self, instance, validated_data):
+        # Le thème est un objet JSON validé par OrganizationThemeSerializer : il remplace l'ancien en entier.
+        if "theme" in validated_data:
+            instance.theme = validated_data.pop("theme")
+        return super().update(instance, validated_data)
 
     @extend_schema_field(serializers.ChoiceField(choices=["ACTIVE", "TRIAL", "EXPIRED"]))
     def get_access_status(self, obj):

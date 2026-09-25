@@ -167,6 +167,7 @@ SPECTACULAR_SETTINGS = {
         "LeaseStatusEnum": "leases.models.Contract.STATUS_CHOICES",
         "ListingStatusEnum": "listings.models.Listing.STATUS",
         "TicketStatusEnum": "maintenance.models.MaintenanceTicket.STATUS_CHOICES",
+        "PriorityEnum": "maintenance.models.MaintenanceTicket.PRIORITY_CHOICES",
         "SubscriptionStatusEnum": "subscriptions.models.Subscription.STATUS",
         "NotificationStatusEnum": "notifications.models.Notification.STATUS",
         "UnitCategoryEnum": "properties.models.Unit.CATEGORY_CHOICES",

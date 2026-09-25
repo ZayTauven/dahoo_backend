@@ -1,6 +1,7 @@
 from django.urls import path
 
 from .platform import (
+    PlatformDashboardAPIView,
     PlatformDemoRequestDetailAPIView,
     PlatformDemoRequestListAPIView,
     PlatformOrganizationDetailAPIView,
@@ -11,6 +12,7 @@ from .platform import (
 )
 
 urlpatterns = [
+    path("dashboard/", PlatformDashboardAPIView.as_view()),
     path("organizations/", PlatformOrganizationListCreateAPIView.as_view()),
     path("organizations/<int:pk>/", PlatformOrganizationDetailAPIView.as_view()),
     path("organizations/<int:pk>/members/", PlatformOrganizationMembersAPIView.as_view()),

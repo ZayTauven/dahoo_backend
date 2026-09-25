@@ -2,6 +2,7 @@ from django.contrib.auth import authenticate, get_user_model
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
+from organizations.theme import OrganizationThemeSerializer
 from subscriptions.services import get_access_status
 from users.phone import normalize_phone
 
@@ -32,6 +33,8 @@ class MeMembershipSerializer(serializers.Serializer):
     role_label = serializers.CharField(source="role.label")
     trial_ends_at = serializers.DateTimeField(source="organization.trial_ends_at")
     access_status = serializers.SerializerMethodField()
+    # Apparence choisie par les administrateurs : appliquée à tous les membres, quel que soit leur rôle.
+    organization_theme = OrganizationThemeSerializer(source="organization.theme", read_only=True)
 
     @extend_schema_field(serializers.ChoiceField(choices=["ACTIVE", "TRIAL", "EXPIRED"]))
     def get_access_status(self, obj):

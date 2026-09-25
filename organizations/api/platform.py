@@ -6,13 +6,15 @@ Création des agences et de leur premier administrateur, suivi des essais et des
 from django.db import transaction
 from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404
-from drf_spectacular.utils import extend_schema, extend_schema_field
+from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_field
 from rest_framework import generics, serializers, status
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from access.models import Role
 from access.permissions import IsPlatformAdmin
 from organizations.models import Membership, Organization
+from organizations.platform_dashboard import build_platform_dashboard
 from organizations.services import add_member, validate_new_member
 from public.models import DemoRequest
 from subscriptions.models import Subscription, SubscriptionPlan
@@ -93,6 +95,102 @@ class PlatformDemoRequestSerializer(serializers.ModelSerializer):
             "units_range", "message", "created_at", "handled",
         ]
         read_only_fields = [field for field in fields if field != "handled"]
+
+
+# --- Tableau de bord de la plateforme (organizations/platform_dashboard.py), lecture seule.
+
+PLATFORM_MONEY = {"max_digits": 16, "decimal_places": 2}
+AGENCY_STATUS = [("ACTIVE", "Abonnée"), ("TRIAL", "En essai"), ("EXPIRED", "Essai expiré"), ("SUSPENDED", "Suspendue")]
+
+
+class AgencyStatusCountsSerializer(serializers.Serializer):
+    ACTIVE = serializers.IntegerField()
+    TRIAL = serializers.IntegerField()
+    EXPIRED = serializers.IntegerField()
+    SUSPENDED = serializers.IntegerField()
+
+
+class PlatformAgenciesSerializer(serializers.Serializer):
+    total = serializers.IntegerField()
+    by_status = AgencyStatusCountsSerializer()
+    members = serializers.IntegerField()
+    cities = serializers.IntegerField()
+
+
+class TrialEndingSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    name = serializers.CharField()
+    city = serializers.CharField()
+    days_left = serializers.IntegerField()
+    members = serializers.IntegerField()
+    listings = serializers.IntegerField()
+
+
+class PlatformMonthSerializer(serializers.Serializer):
+    month = serializers.CharField(help_text="AAAA-MM")
+    signups = serializers.IntegerField()
+    demo_requests = serializers.IntegerField()
+
+
+class PlanRevenueSerializer(serializers.Serializer):
+    plan = serializers.CharField()
+    count = serializers.IntegerField()
+    mrr = serializers.DecimalField(**PLATFORM_MONEY)
+
+
+class PlatformSubscriptionsSummarySerializer(serializers.Serializer):
+    active = serializers.IntegerField()
+    mrr = serializers.DecimalField(**PLATFORM_MONEY)
+    by_plan = PlanRevenueSerializer(many=True)
+
+
+class PendingDemoSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    agency_name = serializers.CharField()
+    contact_name = serializers.CharField()
+    city = serializers.CharField()
+    units_range = serializers.CharField()
+    created_at = serializers.DateTimeField()
+
+
+class PlatformDemoSummarySerializer(serializers.Serializer):
+    total = serializers.IntegerField()
+    pending = serializers.IntegerField()
+    last_30d = serializers.IntegerField()
+    recent_pending = PendingDemoSerializer(many=True)
+
+
+class PlatformPortalSerializer(serializers.Serializer):
+    listings_published = serializers.IntegerField()
+    listings_rent = serializers.IntegerField()
+    listings_sale = serializers.IntegerField()
+    interests_30d = serializers.IntegerField()
+    units_managed = serializers.IntegerField()
+    payments_30d_amount = serializers.DecimalField(**PLATFORM_MONEY)
+    payments_30d_count = serializers.IntegerField()
+
+
+class TopAgencySerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    name = serializers.CharField()
+    city = serializers.CharField()
+    logo = serializers.URLField(allow_null=True)
+    status = serializers.ChoiceField(choices=AGENCY_STATUS)
+    members = serializers.IntegerField()
+    units = serializers.IntegerField()
+    listings = serializers.IntegerField()
+
+
+class PlatformDashboardSerializer(serializers.Serializer):
+    generated_at = serializers.DateTimeField()
+    months = serializers.IntegerField()
+    agencies = PlatformAgenciesSerializer()
+    trials_ending = TrialEndingSerializer(many=True)
+    monthly = PlatformMonthSerializer(many=True)
+    subscriptions = PlatformSubscriptionsSummarySerializer()
+    demo_requests = PlatformDemoSummarySerializer()
+    portal = PlatformPortalSerializer()
+    top_agencies = TopAgencySerializer(many=True)
 
 
 # --- Vues
@@ -190,3 +288,21 @@ class PlatformDemoRequestDetailAPIView(generics.RetrieveUpdateAPIView):
     serializer_class = PlatformDemoRequestSerializer
     queryset = DemoRequest.objects.all()
     http_method_names = ["get", "patch", "head", "options"]
+
+
+class PlatformDashboardAPIView(APIView):
+    """Tableau de bord de l'équipe Dahoo : agences, essais, abonnements, démos et activité du portail."""
+
+    permission_classes = [IsPlatformAdmin]
+
+    @extend_schema(
+        parameters=[OpenApiParameter("months", int, description="Nombre de mois d'historique : 6 ou 12 (défaut 12).")],
+        responses=PlatformDashboardSerializer,
+    )
+    def get(self, request):
+        try:
+            months = int(request.query_params.get("months", 12))
+        except ValueError:
+            months = 12
+        data = build_platform_dashboard(months=6 if months <= 6 else 12, request=request)
+        return Response(PlatformDashboardSerializer(data).data)

@@ -20,7 +20,9 @@ from organizations.services import add_member
 from properties.models import Building, Property, Unit
 from users.models import User
 
+from ._demo_history import seed_history, seed_upcoming
 from ._demo_operations import seed_operations, seed_reference_data
+from ._demo_platform import seed_platform
 
 DEMO_PASSWORD = "DahooDemo!2026"
 # Photos réelles fournies par Dahoo (front : public/images/site/dahoo) : une façade adaptée au type de bien,
@@ -284,7 +286,11 @@ class Command(BaseCommand):
         # Partie gestion (baux, loyers, maintenance) pour la première agence de démonstration.
         seed_reference_data()
         teranga = Organization.objects.get(name=AGENCIES[0]["name"])
-        seed_operations(teranga, User.objects.get(phone=AGENCIES[0]["admin"][0]))
+        teranga_admin = User.objects.get(phone=AGENCIES[0]["admin"][0])
+        seed_operations(teranga, teranga_admin)
+        seed_history(teranga, teranga_admin)
+        seed_upcoming(teranga)
+        seed_platform()
 
         total = Listing.objects.filter(status="PUBLISHED").count()
         self.stdout.write(self.style.SUCCESS(
