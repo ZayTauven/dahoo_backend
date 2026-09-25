@@ -28,5 +28,13 @@ class AutomationRuleSerializer(serializers.ModelSerializer):
 class InAppNotificationSerializer(serializers.ModelSerializer):
     class Meta:
         model = InAppNotification
-        fields = ["id", "title", "body", "read", "created_at"]
-        read_only_fields = ["title", "body", "created_at"]
+        fields = ["id", "kind", "title", "body", "link", "read", "created_at"]
+        read_only_fields = ["kind", "title", "body", "link", "created_at"]
+
+
+class InAppSummarySerializer(serializers.Serializer):
+    unread = serializers.IntegerField()
+
+
+class InAppReadAllSerializer(serializers.Serializer):
+    updated = serializers.IntegerField()

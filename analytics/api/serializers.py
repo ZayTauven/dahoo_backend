@@ -5,6 +5,10 @@ from listings.models import Listing
 from maintenance.models import MaintenanceTicket
 
 
+# Types d'alertes du tableau de bord (nom d'enum figé dans ENUM_NAME_OVERRIDES).
+INSIGHT_KINDS = ["overdue", "urgent_tickets", "leases_ending", "collection", "vacancy", "interests"]
+
+
 class BuildingKPISerializer(serializers.ModelSerializer):
     class Meta:
         model = BuildingKPI
@@ -205,7 +209,7 @@ class ListingsSummarySerializer(serializers.Serializer):
 
 
 class InsightItemSerializer(serializers.Serializer):
-    kind = serializers.ChoiceField(choices=["overdue", "urgent_tickets", "leases_ending", "collection", "vacancy", "interests"])
+    kind = serializers.ChoiceField(choices=INSIGHT_KINDS)
     severity = serializers.ChoiceField(choices=["danger", "warning", "info", "success"])
     title = serializers.CharField()
     amount = serializers.DecimalField(allow_null=True, **MONEY)

@@ -38,6 +38,7 @@ urlpatterns = [
     path("api/v1/field-ops/", include("field_ops.api.urls")),
     path("api/v1/analytics/", include("analytics.api.urls")),
     path("api/v1/public/", include("public.api.urls")),
+    path("api/v1/search/", include("search.urls")),
 ]
 
 # Photos des annonces servies par Django en développement uniquement (static() ne fait rien si DEBUG=False).

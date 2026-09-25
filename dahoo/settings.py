@@ -71,6 +71,7 @@ INSTALLED_APPS = [
     "field_ops",
     "analytics",
     "public",
+    "search",
 
     'django.contrib.admin',
     'django.contrib.auth',
@@ -78,6 +79,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django.contrib.postgres',  # recherche sans accents (lookup unaccent)
 
     
     "corsheaders",
@@ -173,6 +175,10 @@ SPECTACULAR_SETTINGS = {
         "UnitCategoryEnum": "properties.models.Unit.CATEGORY_CHOICES",
         "ListingTypeEnum": "listings.models.Listing.LISTING_TYPE",
         "UnitsRangeEnum": "public.models.DemoRequest.UNITS_RANGE",
+        "InsightKindEnum": "analytics.api.serializers.INSIGHT_KINDS",
+        "InAppNotificationKindEnum": "notifications.models.InAppNotification.KINDS",
+        "SearchResultTypeEnum": "search.views.RESULT_TYPES",
+        "ChromeSchemeEnum": "organizations.theme.SCHEMES",
     },
 }
 

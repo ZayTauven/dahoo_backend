@@ -82,10 +82,43 @@ class AutomationRule(models.Model):
 
 
 class InAppNotification(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    """
+    Notification affichée dans l'espace connecté (cloche de l'en-tête). Créée par le serveur
+    (notifications/services.py), jamais via l'API. `organization` vide = notification de la plateforme.
+    """
+
+    KINDS = [
+        ("VISIT_REQUEST", "Demande de visite"),
+        ("PAYMENT_RECEIVED", "Paiement enregistré"),
+        ("TICKET_CREATED", "Ticket de maintenance"),
+        ("TICKET_ASSIGNED", "Ticket assigné"),
+        ("RENT_OVERDUE", "Loyer en retard"),
+        ("LEASE_ENDING", "Bail arrivant à échéance"),
+        ("TRIAL_ENDING", "Fin d'essai"),
+        ("DEMO_REQUEST", "Demande de démo"),
+    ]
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="inapp_notifications")
+    organization = models.ForeignKey(
+        "organizations.Organization", on_delete=models.CASCADE, null=True, blank=True, related_name="inapp_notifications"
+    )
+    kind = models.CharField(max_length=30, choices=KINDS)
     title = models.CharField(max_length=200)
-    body = models.TextField()
+    body = models.TextField(blank=True)
+    # Chemin de l'écran concerné dans le front (« /espace/maintenance/12 »).
+    link = models.CharField(max_length=300, blank=True)
+    # Rappels calculés (retards, fins de bail...) : une seule notification par utilisateur et par clé.
+    dedupe_key = models.CharField(max_length=120, blank=True)
 
     read = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        indexes = [models.Index(fields=["user", "read"])]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "dedupe_key"], condition=~models.Q(dedupe_key=""), name="inapp_unique_dedupe_per_user"
+            )
+        ]
 

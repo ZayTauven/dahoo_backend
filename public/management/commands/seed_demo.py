@@ -15,12 +15,14 @@ from django.utils import timezone
 
 from access.models import Role
 from listings.models import Listing, ListingPhoto
+from notifications.signals import muted
 from organizations.models import Membership, Organization
 from organizations.services import add_member
 from properties.models import Building, Property, Unit
 from users.models import User
 
 from ._demo_history import seed_history, seed_upcoming
+from ._demo_notifications import seed_notifications
 from ._demo_operations import seed_operations, seed_reference_data
 from ._demo_platform import seed_platform
 
@@ -201,6 +203,13 @@ class Command(BaseCommand):
 
     @transaction.atomic
     def handle(self, photos, refresh_photos=False, **options):
+        # Notifications d'événements coupées pendant le chargement (des centaines de paiements et de
+        # demandes datés d'aujourd'hui) : la démo reçoit ensuite un fil réaliste et daté.
+        with muted():
+            self.seed(photos, refresh_photos)
+        seed_notifications(Organization.objects.get(name=AGENCIES[0]["name"]))
+
+    def seed(self, photos, refresh_photos):
         photo_dir = Path(photos)
         interiors = sorted(photo_dir.glob("interieur-*.webp"))
         logo_dir = photo_dir.parent / "agences"

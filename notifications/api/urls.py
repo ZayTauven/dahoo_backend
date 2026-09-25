@@ -4,6 +4,8 @@ from .views import (
     AutomationRuleListCreateAPIView,
     InAppNotificationDetailAPIView,
     InAppNotificationListAPIView,
+    InAppReadAllAPIView,
+    InAppSummaryAPIView,
     NotificationDetailAPIView,
     NotificationListAPIView,
     NotificationTemplateListCreateAPIView,
@@ -15,5 +17,7 @@ urlpatterns = [
     path("templates/", NotificationTemplateListCreateAPIView.as_view()),
     path("rules/", AutomationRuleListCreateAPIView.as_view()),
     path("inapp/", InAppNotificationListAPIView.as_view()),
+    path("inapp/summary/", InAppSummaryAPIView.as_view()),
+    path("inapp/read-all/", InAppReadAllAPIView.as_view()),
     path("inapp/<int:pk>/", InAppNotificationDetailAPIView.as_view()),
 ]

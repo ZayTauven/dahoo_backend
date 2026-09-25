@@ -70,7 +70,7 @@ def _schedule_row(schedule, today):
     }
 
 
-def _schedules_with_remaining(organization):
+def schedules_with_remaining(organization):
     allocated = (
         PaymentAllocation.objects.filter(schedule=OuterRef("pk"))
         .values("schedule")
@@ -137,7 +137,7 @@ def leases_section(organization, today):
 def finance_section(organization, today, months):
     keys = month_keys(today, months)
     start = keys[0]
-    schedules = _schedules_with_remaining(organization)
+    schedules = schedules_with_remaining(organization)
     payments = Payment.objects.filter(organization=organization)
 
     expected = {
