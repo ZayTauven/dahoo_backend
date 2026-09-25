@@ -20,6 +20,8 @@ class Organization(models.Model):
     email = models.EmailField(blank=True)
     address = models.TextField(blank=True)
     city = models.CharField(max_length=100, blank=True)
+    # Logo affiché sur le portail public (annuaire, fiche agence, annonces).
+    logo = models.ImageField(upload_to="organizations/logos/", blank=True)
 
     is_active = models.BooleanField(default=True)
     # Organisation interne de Dahoo (l'éditeur utilise aussi l'application comme une agence) :

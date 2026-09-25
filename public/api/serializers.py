@@ -19,15 +19,19 @@ PROPERTY = "unit.building.property"
 
 
 class PublicAgencySummarySerializer(serializers.ModelSerializer):
+    logo = serializers.ImageField(read_only=True)
+
     class Meta:
         model = Organization
-        fields = ["id", "name", "city"]
+        fields = ["id", "name", "city", "logo"]
 
 
 class PublicAgencyContactSerializer(serializers.ModelSerializer):
+    logo = serializers.ImageField(read_only=True)
+
     class Meta:
         model = Organization
-        fields = ["id", "name", "city", "phone", "email"]
+        fields = ["id", "name", "city", "logo", "phone", "email"]
 
 
 class PublicListingSerializer(serializers.ModelSerializer):
@@ -90,10 +94,11 @@ class PublicListingDetailSerializer(PublicListingSerializer):
 
 class PublicAgencySerializer(serializers.ModelSerializer):
     listings_count = serializers.IntegerField(read_only=True)
+    logo = serializers.ImageField(read_only=True)
 
     class Meta:
         model = Organization
-        fields = ["id", "name", "city", "listings_count"]
+        fields = ["id", "name", "city", "logo", "listings_count"]
 
 
 class ListingTypeCountsSerializer(serializers.Serializer):

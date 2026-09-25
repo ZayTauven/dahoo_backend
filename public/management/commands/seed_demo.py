@@ -23,8 +23,16 @@ from users.models import User
 from ._demo_operations import seed_operations, seed_reference_data
 
 DEMO_PASSWORD = "DahooDemo!2026"
-# slider-01 est exclu : il montre le Louvre Abou Dhabi, un monument étranger sans rapport avec les biens.
-PHOTO_PATTERNS = ("property-*.webp", "slider-02.webp", "slider-03.webp", "immobilier-01.webp", "immobilier-02.webp")
+# Photos réelles fournies par Dahoo (front : public/images/site/dahoo) : une façade adaptée au type de bien,
+# puis des intérieurs. Les terrains restent sans photo (vignette neutre côté portail).
+EXTERIORS = {
+    "HOUSE": ("villa-patio-bleu", "villa-piscine-jardin", "villa-contemporaine", "villa-patio-piscine", "villa-blanche-balcons", "villas-blanches"),
+    "APARTMENT": ("corniche-residences", "residence-facade-ocre", "residence-briques", "tour-vue-mer", "immeuble-palmiers"),
+    "STUDIO": ("immeuble-palmiers", "residence-briques", "corniche-residences"),
+    "OFFICE": ("tours-dakar", "immeuble-plateau"),
+    "SHOP": ("immeuble-plateau", "dakar-cathedrale-car-rapide"),
+}
+PHOTOS_PER_LISTING = 4
 
 # (agence, ville, téléphone, administrateur, biens)
 # bien : (nom, adresse, quartier, ville, lat, lng, [lots])
@@ -115,6 +123,62 @@ AGENCIES = [
             ]),
         ],
     },
+    {
+        "name": "Rovesta",
+        "city": "Saint-Louis",
+        "phone": "+221339610000",
+        "email": "contact@rovesta.sn",
+        "logo": "rovesta",
+        "admin": ("+221770000004", "Ibrahima", "Sow"),
+        "properties": [
+            ("Maison de l'Île", "Rue Blaise Diagne", "Île de Saint-Louis", "Saint-Louis", "16.024000", "-16.505000", [
+                ("M1", "HOUSE", 180, 4, 2, 0, False, ("SALE", "85000000", "Maison coloniale rénovée sur l'île de Saint-Louis",
+                    "Maison à étage restaurée, quatre chambres, patio intérieur et balcon en fer forgé. "
+                    "À deux rues du pont Faidherbe.")),
+            ]),
+            ("Résidence Hydrobase", "Route de l'Hydrobase", "Hydrobase", "Saint-Louis", "16.000000", "-16.513000", [
+                ("H3", "APARTMENT", 70, 2, 1, 1, True, ("RENT", "250000", "Appartement meublé face au fleuve à l'Hydrobase",
+                    "Deux pièces meublé, terrasse avec vue sur le fleuve, résidence calme avec gardien.")),
+            ]),
+        ],
+    },
+    {
+        "name": "Mucci Real Estate",
+        "city": "Dakar",
+        "phone": "+221338690000",
+        "email": "contact@mucci.sn",
+        "logo": "mucci-real-estate",
+        "admin": ("+221770000005", "Khadija", "Ba"),
+        "properties": [
+            ("Villa des Mamelles", "Route des Mamelles", "Mamelles", "Dakar", "14.726000", "-17.503000", [
+                ("VM", "HOUSE", 350, 5, 4, 3, False, ("SALE", "320000000", "Villa d'architecte aux Mamelles",
+                    "Villa contemporaine de cinq chambres, piscine, toit-terrasse avec vue sur l'océan "
+                    "et le phare des Mamelles.")),
+            ]),
+            ("Résidence Ouakam", "Route de Ouakam", "Ouakam", "Dakar", "14.723000", "-17.488000", [
+                ("O4", "APARTMENT", 120, 3, 2, 1, True, ("RENT", "950000", "Appartement familial meublé à Ouakam",
+                    "Trois chambres dont une suite, séjour ouvert sur balcon, résidence avec piscine et salle de sport.")),
+            ]),
+        ],
+    },
+    {
+        "name": "Central Estate",
+        "city": "Dakar",
+        "phone": "+221338230000",
+        "email": "bonjour@centralestate.sn",
+        "logo": "central-estate",
+        "admin": ("+221770000006", "Omar", "Gueye"),
+        "properties": [
+            ("Immeuble Sacré-Cœur", "Voie de dégagement nord", "Sacré-Cœur", "Dakar", "14.718000", "-17.468000", [
+                ("SC7", "APARTMENT", 90, 2, 2, 1, False, ("RENT", "550000", "Appartement neuf de deux chambres à Sacré-Cœur",
+                    "Deux chambres, deux salles de bain, cuisine équipée, dans un immeuble neuf avec ascenseur et parking.")),
+            ]),
+            ("Centre d'affaires République", "Boulevard de la République", "Plateau", "Dakar", "14.671000", "-17.438000", [
+                ("BR2", "OFFICE", 210, None, 2, 4, False, ("RENT", "2200000", "Plateau de bureaux vue mer au Plateau",
+                    "Plateau de 210 m² au 6e étage, vue sur la baie, climatisation, fibre et quatre places de parking.")),
+            ]),
+        ],
+    },
 ]
 
 
@@ -124,7 +188,7 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument(
             "--photos",
-            default="../dahoo_front/public/images/site",
+            default="../dahoo_front/public/images/site/dahoo",
             help="Dossier des photos à attribuer aux annonces (défaut : visuels du front).",
         )
         parser.add_argument(
@@ -136,14 +200,26 @@ class Command(BaseCommand):
     @transaction.atomic
     def handle(self, photos, refresh_photos=False, **options):
         photo_dir = Path(photos)
-        # Uniquement de vraies photos de biens (les autres visuels du site sont des illustrations,
-        # des monuments étrangers ou des portraits, sans rapport avec une annonce).
-        pool = sorted(
-            p for pattern in PHOTO_PATTERNS for p in photo_dir.glob(pattern)
-        )
-        if not pool:
+        interiors = sorted(photo_dir.glob("interieur-*.webp"))
+        logo_dir = photo_dir.parent / "agences"
+        if not interiors:
             raise CommandError(f"Aucune photo trouvée dans {photo_dir.resolve()}.")
-        photo_cycle = cycle(pool)
+        interior_cycle = cycle(interiors)
+        exteriors = {
+            category: [photo_dir / f"{name}.webp" for name in names if (photo_dir / f"{name}.webp").exists()]
+            for category, names in EXTERIORS.items()
+        }
+        used_covers = set()
+
+        def next_exterior(category):
+            """Façade adaptée au type de bien, jamais deux fois la même couverture : une fois les façades
+            du type épuisées, on prend un intérieur encore inutilisé."""
+            candidates = (exteriors.get(category) or []) + interiors
+            choice = next((photo for photo in candidates if photo not in used_covers), None)
+            if choice is None:
+                choice = candidates[len(used_covers) % len(candidates)]
+            used_covers.add(choice)
+            return choice
         admin_role = Role.objects.get(code="ORG_ADMIN")
         created = 0
 
@@ -152,6 +228,12 @@ class Command(BaseCommand):
                 name=spec["name"], defaults={"city": spec["city"], "phone": spec["phone"], "email": spec["email"]}
             )
             Organization.objects.filter(pk=organization.pk).update(phone=spec["phone"], email=spec["email"], city=spec["city"])
+            # Logo de l'agence (agences ajoutées avec les visuels fournis par Dahoo).
+            if spec.get("logo"):
+                logo = logo_dir / f"{spec['logo']}.webp"
+                if logo.exists() and (refresh_photos or not organization.logo):
+                    with logo.open("rb") as handle:
+                        organization.logo.save(logo.name, File(handle), save=True)
 
             phone, first_name, last_name = spec["admin"]
             user = User.objects.filter(phone=phone).first()
@@ -190,8 +272,9 @@ class Command(BaseCommand):
                             photo.delete()
                     # Pas de photo de maison pour un terrain : la carte affiche une vignette neutre.
                     if category != "LAND" and not ad.photos.exists():
-                        for position in range(3):
-                            source = next(photo_cycle)
+                        sources = [next_exterior(category)]
+                        sources += [next(interior_cycle) for _ in range(PHOTOS_PER_LISTING - 1)]
+                        for position, source in enumerate(sources):
                             with source.open("rb") as handle:
                                 ListingPhoto.objects.create(
                                     listing=ad, position=position, alt=f"{title} — photo {position + 1}",
@@ -206,5 +289,5 @@ class Command(BaseCommand):
         total = Listing.objects.filter(status="PUBLISHED").count()
         self.stdout.write(self.style.SUCCESS(
             f"Démonstration prête : {created} annonce(s) créée(s), {total} annonce(s) publiée(s). "
-            f"Comptes administrateurs : +221770000001 / 2 / 3, mot de passe {DEMO_PASSWORD}"
+            f"Comptes administrateurs : +221770000001 à 6, mot de passe {DEMO_PASSWORD}"
         ))

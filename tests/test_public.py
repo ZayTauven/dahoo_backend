@@ -1,8 +1,10 @@
 """API publique : visibilité des annonces, absence de données privées, filtres, agences, statistiques, démo."""
 
+import tempfile
 from datetime import timedelta
 from decimal import Decimal
 
+from django.test import override_settings
 from django.utils import timezone
 from rest_framework.test import APIClient
 
@@ -16,6 +18,7 @@ from .factories import (
     DahooTestCase,
     add_member,
     client_for,
+    image_file,
     make_lease,
     make_listing,
     make_tenant,
@@ -142,7 +145,8 @@ class PublicPrivacyTests(PublicTestCase):
         self.assert_no_private_data(response)
         data = response.json()
         self.assertEqual(data["agency"], {
-            "id": self.org_a.id, "name": "Agence A", "city": "", "phone": "+221338200000", "email": "contact@agence-a.sn",
+            "id": self.org_a.id, "name": "Agence A", "city": "", "logo": None, "phone": "+221338200000",
+            "email": "contact@agence-a.sn",
         })
         # Position arrondie : le quartier, pas le logement.
         self.assertEqual((data["latitude"], data["longitude"]), ("14.717", "-17.468"))
@@ -210,7 +214,7 @@ class PublicListingFilterTests(PublicTestCase):
         self.assertEqual(item["category_label"], "Maison / villa")
         self.assertEqual(item["neighborhood"], "Almadies")
         self.assertEqual(item["bedrooms"], 5)
-        self.assertEqual(item["agency"], {"id": self.org_a.id, "name": "Agence A", "city": ""})
+        self.assertEqual(item["agency"], {"id": self.org_a.id, "name": "Agence A", "city": "", "logo": None})
         flat = next(i for i in results(self.public.get(f"{PUBLIC}listings/")) if i["id"] == self.flat.id)
         self.assertIsNone(flat["cover"])
 
@@ -252,7 +256,18 @@ class PublicAgencyTests(PublicTestCase):
 
     def test_list_only_agencies_with_public_listings(self):
         data = results(self.public.get(f"{PUBLIC}agencies/"))
-        self.assertEqual(data, [{"id": self.org_a.id, "name": "Agence A", "city": "Dakar", "listings_count": 3}])
+        self.assertEqual(
+            data, [{"id": self.org_a.id, "name": "Agence A", "city": "Dakar", "logo": None, "listings_count": 3}]
+        )
+
+    def test_logo_is_exposed_as_absolute_url(self):
+        media_root = tempfile.mkdtemp(prefix="dahoo-test-media-")
+        with override_settings(MEDIA_ROOT=media_root):
+            self.org_a.logo.save("logo.png", image_file(), save=True)
+            agency = results(self.public.get(f"{PUBLIC}agencies/"))[0]
+            self.assertTrue(agency["logo"].startswith("http://testserver/media/organizations/logos/"))
+            listing = results(self.public.get(f"{PUBLIC}listings/"))[0]
+            self.assertEqual(listing["agency"]["logo"], agency["logo"])
 
     def test_detail(self):
         data = self.public.get(f"{PUBLIC}agencies/{self.org_a.id}/").json()

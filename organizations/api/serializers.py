@@ -17,10 +17,10 @@ class OrganizationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Organization
         fields = [
-            "id", "name", "phone", "email", "address", "city",
+            "id", "name", "phone", "email", "address", "city", "logo",
             "is_active", "trial_ends_at", "access_status", "created_at",
         ]
-        read_only_fields = ["is_active", "trial_ends_at", "created_at"]
+        read_only_fields = ["logo", "is_active", "trial_ends_at", "created_at"]
 
     @extend_schema_field(serializers.ChoiceField(choices=["ACTIVE", "TRIAL", "EXPIRED"]))
     def get_access_status(self, obj):
