@@ -23,7 +23,8 @@ from users.models import User
 from ._demo_operations import seed_operations, seed_reference_data
 
 DEMO_PASSWORD = "DahooDemo!2026"
-PHOTO_PATTERNS = ("property-*.webp", "slider-*.webp", "immobilier-01.webp", "immobilier-02.webp")
+# slider-01 est exclu : il montre le Louvre Abou Dhabi, un monument étranger sans rapport avec les biens.
+PHOTO_PATTERNS = ("property-*.webp", "slider-02.webp", "slider-03.webp", "immobilier-01.webp", "immobilier-02.webp")
 
 # (agence, ville, téléphone, administrateur, biens)
 # bien : (nom, adresse, quartier, ville, lat, lng, [lots])
