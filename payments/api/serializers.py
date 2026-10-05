@@ -107,12 +107,13 @@ class PayerField(serializers.PrimaryKeyRelatedField):
 class PaymentSerializer(serializers.ModelSerializer):
     payer = PayerField()
     payer_name = serializers.SerializerMethodField()
+    units = serializers.SerializerMethodField(help_text="Lots des échéances réglées par ce paiement")
     allocations = PaymentAllocationSerializer(many=True, read_only=True)
 
     class Meta:
         model = Payment
         fields = [
-            "id", "payer", "payer_name", "amount_paid", "payment_method", "payment_date",
+            "id", "payer", "payer_name", "units", "amount_paid", "payment_method", "payment_date",
             "reference", "note", "recorded_by", "created_at", "allocations",
         ]
         read_only_fields = ["recorded_by", "created_at"]
@@ -126,6 +127,15 @@ class PaymentSerializer(serializers.ModelSerializer):
     @extend_schema_field(OpenApiTypes.STR)
     def get_payer_name(self, payment):
         return person_name(payment, "payer_profile_name", payment.payer, payment.organization_id)
+
+    @extend_schema_field(serializers.ListField(child=serializers.CharField()))
+    def get_units(self, payment):
+        units = []
+        for allocation in payment.allocations.all():
+            lease = allocation.schedule.lease_contract
+            if lease and lease.unit.reference not in units:
+                units.append(lease.unit.reference)
+        return units
 
 
 class PaymentCreateSerializer(PaymentSerializer):

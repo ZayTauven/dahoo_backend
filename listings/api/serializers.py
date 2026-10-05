@@ -16,6 +16,7 @@ class ListingSerializer(serializers.ModelSerializer):
     unit_label = serializers.CharField(source="unit.label", read_only=True)
     cover = serializers.SerializerMethodField()
     photos_count = serializers.IntegerField(read_only=True, default=0)
+    interests_count = serializers.IntegerField(read_only=True, default=0, help_text="Demandes de visite reçues")
 
     class Meta:
         model = Listing
@@ -31,6 +32,7 @@ class ListingSerializer(serializers.ModelSerializer):
             "status",
             "cover",
             "photos_count",
+            "interests_count",
             "published_at",
             "created_at",
         ]

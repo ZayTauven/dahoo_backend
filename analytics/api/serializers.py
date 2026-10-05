@@ -6,7 +6,7 @@ from maintenance.models import MaintenanceTicket
 
 
 # Types d'alertes du tableau de bord (nom d'enum figé dans ENUM_NAME_OVERRIDES).
-INSIGHT_KINDS = ["overdue", "urgent_tickets", "leases_ending", "collection", "vacancy", "interests"]
+INSIGHT_KINDS = ["overdue", "urgent_tickets", "leases_ending", "vacancy", "interests"]
 
 
 class BuildingKPISerializer(serializers.ModelSerializer):
@@ -61,6 +61,7 @@ class EndingLeaseSerializer(serializers.Serializer):
     unit = serializers.CharField()
     end_date = serializers.DateField()
     days_left = serializers.IntegerField()
+    monthly_rent = serializers.DecimalField(help_text="Loyer + charges", **MONEY)
 
 
 class LeasesSummarySerializer(serializers.Serializer):
@@ -82,6 +83,7 @@ class MonthRecoverySerializer(serializers.Serializer):
     expected = serializers.DecimalField(**MONEY)
     collected = serializers.DecimalField(**MONEY)
     rate = serializers.FloatField(allow_null=True)
+    payments = serializers.IntegerField(help_text="Paiements enregistrés depuis le début du mois")
 
 
 class AgingBucketSerializer(serializers.Serializer):
@@ -90,11 +92,21 @@ class AgingBucketSerializer(serializers.Serializer):
     count = serializers.IntegerField()
 
 
+class OverdueTenantSerializer(serializers.Serializer):
+    lease_id = serializers.IntegerField(allow_null=True)
+    tenant = serializers.CharField()
+    unit = serializers.CharField()
+    count = serializers.IntegerField(help_text="Échéances en retard")
+    amount = serializers.DecimalField(**MONEY)
+    days_late = serializers.IntegerField(help_text="Retard de la plus ancienne échéance")
+
+
 class OverdueSerializer(serializers.Serializer):
     amount = serializers.DecimalField(**MONEY)
     count = serializers.IntegerField()
     tenants = serializers.IntegerField()
     aging = AgingBucketSerializer(many=True)
+    by_tenant = OverdueTenantSerializer(many=True, help_text="Un locataire par ligne, les plus gros montants d'abord (6 au plus)")
 
 
 class ScheduleRowSerializer(serializers.Serializer):
@@ -132,6 +144,8 @@ class FinanceSummarySerializer(serializers.Serializer):
     overdue = OverdueSerializer()
     late = ScheduleRowSerializer(many=True)
     upcoming = ScheduleRowSerializer(many=True)
+    upcoming_total = serializers.DecimalField(help_text="Reste dû sur les 30 prochains jours", **MONEY)
+    upcoming_count = serializers.IntegerField()
     by_method = MethodTotalSerializer(many=True)
     recent_payments = RecentPaymentSerializer(many=True)
 
@@ -198,8 +212,15 @@ class RecentInterestSerializer(serializers.Serializer):
     created_at = serializers.DateTimeField()
 
 
+class UnitRefSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    reference = serializers.CharField()
+
+
 class ListingsSummarySerializer(serializers.Serializer):
     published = serializers.IntegerField()
+    unlisted_count = serializers.IntegerField(help_text="Lots libres sans annonce publiée ni brouillon")
+    unlisted_units = UnitRefSerializer(many=True, help_text="Les 12 premiers, par référence")
     drafts = serializers.IntegerField()
     interests_period = serializers.IntegerField()
     interests_30d = serializers.IntegerField()
@@ -212,7 +233,10 @@ class InsightItemSerializer(serializers.Serializer):
     kind = serializers.ChoiceField(choices=INSIGHT_KINDS)
     severity = serializers.ChoiceField(choices=["danger", "warning", "info", "success"])
     title = serializers.CharField()
+    meta = serializers.CharField(help_text="Contexte court : noms, lot, période")
     amount = serializers.DecimalField(allow_null=True, **MONEY)
+    count = serializers.IntegerField(allow_null=True)
+    date = serializers.DateField(allow_null=True)
     href = serializers.CharField()
 
 
@@ -225,3 +249,9 @@ class DashboardSerializer(serializers.Serializer):
     maintenance = MaintenanceSummarySerializer(allow_null=True)
     listings = ListingsSummarySerializer(allow_null=True)
     insights = InsightItemSerializer(many=True)
+
+
+class NavCountersSerializer(serializers.Serializer):
+    properties = serializers.IntegerField(allow_null=True)
+    overdue_schedules = serializers.IntegerField(allow_null=True)
+    open_tickets = serializers.IntegerField(allow_null=True)

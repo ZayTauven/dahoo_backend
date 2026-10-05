@@ -1,5 +1,6 @@
 from django.db import transaction
-from django.db.models import Max
+from django.db.models import Count, IntegerField, Max, OuterRef, Subquery, Value
+from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from drf_spectacular.utils import extend_schema
@@ -29,8 +30,14 @@ LISTING_ORGANIZATION = "unit__building__property__organization"
 
 
 def listings_with_details():
-	"""Annonces avec libellé du lot, couverture et nombre de photos, sans requête par ligne."""
-	return with_cover(Listing.objects.select_related("unit__building__property"), count=True)
+	"""Annonces avec libellé du lot, couverture, nombre de photos et de demandes de visite, sans requête par ligne."""
+	# Sous-requête (et non Count) : la jointure des photos multiplierait les demandes.
+	interests = (
+		ProspectInterest.objects.filter(listing=OuterRef("pk")).values("listing").annotate(total=Count("id")).values("total")
+	)
+	return with_cover(Listing.objects.select_related("unit__building__property"), count=True).annotate(
+		interests_count=Coalesce(Subquery(interests, output_field=IntegerField()), Value(0))
+	)
 
 
 class ListingListCreateAPIView(OrganizationScopedMixin, generics.ListCreateAPIView):

@@ -56,6 +56,55 @@ class DashboardTests(DahooTestCase):
         self.assertEqual(finance["by_method"][0]["code"], "WAVE")
         self.assertEqual(finance["late"][0]["id"], self.previous.id)
 
+    def test_overdue_grouped_by_tenant(self):
+        # Une deuxième échéance en retard sur le même bail : une seule ligne, deux échéances.
+        schedule(self.lease, add_months(self.today.replace(day=1), -2), "150000")
+        finance = self.api_a.get(URL).json()["finance"]
+        groups = finance["overdue"]["by_tenant"]
+        self.assertEqual(len(groups), 1)
+        self.assertEqual(groups[0]["lease_id"], self.lease.id)
+        self.assertEqual(groups[0]["count"], finance["overdue"]["count"])
+        self.assertEqual(Decimal(groups[0]["amount"]), Decimal(finance["overdue"]["amount"]))
+        self.assertGreaterEqual(groups[0]["days_late"], 32)
+        self.assertEqual(finance["this_month"]["payments"], 1)
+
+    def test_unlisted_free_units(self):
+        listings = self.api_a.get(URL).json()["listings"]
+        self.assertEqual(listings["unlisted_count"], 1)
+        self.assertEqual(len(listings["unlisted_units"]), 1)
+
+    def test_listing_interests_count_ignores_photos(self):
+        listing = make_listing(self.org_a)
+        listing.photos.create(image="listings/2026/09/a.jpg")
+        listing.photos.create(image="listings/2026/09/b.jpg")
+        for index in range(2):
+            prospect = Prospect.objects.create(organization=self.org_a, full_name=f"Prospect {index}", phone=f"+22177000990{index}", source="site")
+            ProspectInterest.objects.create(listing=listing, prospect=prospect)
+        rows = self.api_a.get("/api/v1/listings/").json()["results"]
+        row = next(row for row in rows if row["id"] == listing.id)
+        self.assertEqual(row["interests_count"], 2)
+        self.assertEqual(row["photos_count"], 2)
+
+    def test_insights_carry_context(self):
+        data = self.api_a.get(URL).json()
+        by_kind = {item["kind"]: item for item in data["insights"]}
+        self.assertNotIn("collection", by_kind)
+        overdue = by_kind["overdue"]
+        self.assertIsNotNone(overdue["amount"])
+        self.assertIn(data["finance"]["overdue"]["by_tenant"][0]["tenant"], overdue["meta"])
+        vacancy = by_kind["vacancy"]
+        self.assertEqual(vacancy["count"], 1)
+        self.assertEqual(vacancy["title"], "1 lot libre sans annonce")
+
+    def test_nav_counters(self):
+        MaintenanceTicket.objects.create(unit=self.lease.unit, description="Fuite", priority="HIGH", reported_by=self.lease.tenant)
+        data = self.api_a.get("/api/v1/analytics/counters/").json()
+        self.assertEqual(data["overdue_schedules"], self.api_a.get(URL).json()["finance"]["overdue"]["count"])
+        self.assertEqual(data["open_tickets"], 1)
+        self.assertGreaterEqual(data["properties"], 1)
+        viewer = add_member(self.org_a, role="VIEWER")
+        self.assertEqual(client_for(viewer).get("/api/v1/analytics/counters/").status_code, 200)
+
     def test_portfolio_and_insights(self):
         data = self.api_a.get(URL).json()
         self.assertEqual(data["portfolio"]["units"], 2)

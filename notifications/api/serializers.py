@@ -32,8 +32,19 @@ class InAppNotificationSerializer(serializers.ModelSerializer):
         read_only_fields = ["kind", "title", "body", "link", "created_at"]
 
 
+class InAppCategoryCountsSerializer(serializers.Serializer):
+    retards = serializers.IntegerField()
+    visites = serializers.IntegerField()
+    paiements = serializers.IntegerField()
+    maintenance = serializers.IntegerField()
+    baux = serializers.IntegerField()
+    plateforme = serializers.IntegerField()
+
+
 class InAppSummarySerializer(serializers.Serializer):
     unread = serializers.IntegerField()
+    total = serializers.IntegerField()
+    categories = InAppCategoryCountsSerializer()
 
 
 class InAppReadAllSerializer(serializers.Serializer):

@@ -89,7 +89,7 @@ def payments_with_labels():
 	"""Paiements avec allocations et nom du payeur (fiche locataire de l'organisation)."""
 	return (
 		Payment.objects.select_related("payer")
-		.prefetch_related("allocations")
+		.prefetch_related("allocations", "allocations__schedule__lease_contract__unit")
 		.annotate(payer_profile_name=tenant_name_subquery("payer"))
 	)
 

@@ -128,10 +128,31 @@ def leases_section(organization, today):
                 "unit": lease.unit.reference,
                 "end_date": lease.end_date,
                 "days_left": (lease.end_date - today).days,
+                "monthly_rent": lease.rent_amount + lease.charges_amount,
             }
             for lease in ending
         ],
     }
+
+
+def overdue_by_tenant(overdue, today):
+    """Échéances en retard regroupées par bail : un locataire par ligne, les plus gros montants d'abord."""
+    groups = {}
+    for schedule in overdue:
+        lease = schedule.lease_contract
+        key = lease.pk if lease else None
+        group = groups.setdefault(key, {
+            "lease_id": key,
+            "tenant": _tenant_name(lease.tenant) if lease else "",
+            "unit": lease.unit.reference if lease else "",
+            "count": 0,
+            "amount": ZERO,
+            "days_late": 0,
+        })
+        group["count"] += 1
+        group["amount"] += schedule.remaining
+        group["days_late"] = max(group["days_late"], (today - schedule.due_date).days)
+    return sorted(groups.values(), key=lambda group: (-group["amount"], -group["days_late"]))
 
 
 def finance_section(organization, today, months):
@@ -186,11 +207,9 @@ def finance_section(organization, today, months):
         rows = [s for s in overdue if (today - s.due_date).days >= low and (high is None or (today - s.due_date).days <= high)]
         aging.append({"bucket": label, "amount": sum((s.remaining for s in rows), ZERO), "count": len(rows)})
 
-    upcoming = (
-        schedules.filter(is_paid=False, due_date__gte=today, due_date__lte=today + timedelta(days=30), remaining__gt=0)
-        .select_related("lease_contract__tenant", "lease_contract__unit")
-        .order_by("due_date")[:6]
-    )
+    upcoming_qs = schedules.filter(is_paid=False, due_date__gte=today, due_date__lte=today + timedelta(days=30), remaining__gt=0)
+    upcoming = upcoming_qs.select_related("lease_contract__tenant", "lease_contract__unit").order_by("due_date")[:6]
+    upcoming_total = upcoming_qs.aggregate(total=Sum("remaining"), count=Count("id"))
     by_method = (
         payments.filter(payment_date__date__gte=start)
         .values("payment_method__code", "payment_method__label")
@@ -207,15 +226,19 @@ def finance_section(organization, today, months):
             "expected": month_expected,
             "collected": month_allocated,
             "rate": round(float(month_allocated / month_expected * 100), 1) if month_expected else None,
+            "payments": payments.filter(payment_date__date__gte=month_start).count(),
         },
         "overdue": {
             "amount": sum((s.remaining for s in overdue), ZERO),
             "count": len(overdue),
             "tenants": len({s.lease_contract.tenant_id for s in overdue if s.lease_contract}),
             "aging": aging,
+            "by_tenant": overdue_by_tenant(overdue, today)[:6],
         },
         "late": [_schedule_row(s, today) for s in overdue[:6]],
         "upcoming": [_schedule_row(s, today) for s in upcoming],
+        "upcoming_total": _amount(upcoming_total["total"]),
+        "upcoming_count": upcoming_total["count"],
         "by_method": [
             {"code": row["payment_method__code"], "label": row["payment_method__label"], "amount": row["amount"], "count": row["count"]}
             for row in by_method
@@ -307,8 +330,16 @@ def listings_section(organization, today, months, request):
         .prefetch_related("photos")[:5]
     )
     recent = interests.select_related("prospect", "listing").order_by("-created_at")[:6]
+    # Lots libres sans annonce en ligne ni en préparation : ce que l'agence peut publier.
+    unlisted = (
+        Unit.objects.filter(building__property__organization=organization, status="FREE")
+        .exclude(listings__status__in=("DRAFT", "PUBLISHED"))
+        .order_by("reference")
+    )
     return {
         "published": by_status.get("PUBLISHED", 0),
+        "unlisted_count": unlisted.count(),
+        "unlisted_units": [{"id": unit.pk, "reference": unit.reference} for unit in unlisted[:12]],
         "drafts": by_status.get("DRAFT", 0),
         "interests_period": interests.filter(created_at__date__gte=start).count(),
         "interests_30d": interests.filter(created_at__date__gte=today - timedelta(days=30)).count(),
@@ -338,57 +369,83 @@ def listings_section(organization, today, months, request):
     }
 
 
+def _names(names, limit=3):
+    """« Ibrahima Kane, Ousmane Faye et 2 autres »."""
+    names = [name for name in names if name]
+    if len(names) <= limit:
+        return ", ".join(names)
+    return f"{', '.join(names[:limit])} et {len(names) - limit} autre{'s' if len(names) - limit > 1 else ''}"
+
+
+def _plural(count, singular, plural=None):
+    return f"{count} {singular if count == 1 else (plural or singular + 's')}"
+
+
 def insights(data, today):
-    """Alertes à traiter en priorité, déduites des sections calculées (jamais inventées)."""
+    """
+    Points à traiter en priorité, déduits des sections calculées (jamais inventés). Chacun porte un
+    titre, une ligne de contexte (`meta`) et une valeur : un montant, un nombre ou une date.
+    Le taux de recouvrement n'y figure pas : il est déjà dans les indicateurs du tableau de bord.
+    """
     items = []
     finance, leases, maintenance, portfolio, listings = (
         data.get("finance"), data.get("leases"), data.get("maintenance"), data.get("portfolio"), data.get("listings"),
     )
-    if finance and finance["overdue"]["count"]:
-        count = finance["overdue"]["count"]
+
+    def add(kind, severity, title, meta, href, amount=None, count=None, date_=None):
         items.append({
-            "kind": "overdue", "severity": "danger",
-            "title": f"{count} échéance{'s' if count > 1 else ''} en retard",
-            "amount": finance["overdue"]["amount"], "href": "/espace/echeances?etat=retard",
+            "kind": kind, "severity": severity, "title": title, "meta": meta, "href": href,
+            "amount": amount, "count": count, "date": date_,
         })
+
+    if finance and finance["overdue"]["count"]:
+        overdue = finance["overdue"]
+        add(
+            "overdue", "danger",
+            f"{_plural(overdue['count'], 'échéance')} en retard",
+            _names([group["tenant"] for group in overdue["by_tenant"]]),
+            "/espace/echeances?etat=retard",
+            amount=overdue["amount"],
+        )
     if maintenance and maintenance["urgent_open"]:
         count = maintenance["urgent_open"]
-        items.append({
-            "kind": "urgent_tickets", "severity": "danger",
-            "title": f"{count} ticket{'s' if count > 1 else ''} prioritaire{'s' if count > 1 else ''} ouvert{'s' if count > 1 else ''}",
-            "amount": None, "href": "/espace/maintenance",
-        })
+        urgent = next((t for t in maintenance["recent_open"] if t["priority"] == "URGENT"), None)
+        meta = (
+            f"Dont une urgence : {(urgent['category'] or 'intervention').lower()} au {urgent['unit']}" if urgent
+            else f"Sur {_plural(maintenance['open'], 'ticket ouvert', 'tickets ouverts')}"
+        )
+        add("urgent_tickets", "warning", f"{_plural(count, 'ticket prioritaire', 'tickets prioritaires')}", meta, "/espace/maintenance", count=count)
     if leases and leases["ending_soon"]:
         first = leases["ending_soon"][0]
         count = len(leases["ending_soon"])
-        items.append({
-            "kind": "leases_ending", "severity": "warning",
-            "title": (
-                f"{count} baux arrivent à échéance (le premier dans {first['days_left']} j)" if count > 1
-                else f"1 bail arrive à échéance dans {first['days_left']} j"
-            ),
-            "amount": None, "href": f"/espace/baux/{first['id']}",
-        })
-    if finance and finance["this_month"]["rate"] is not None and today.day > 10 and finance["this_month"]["rate"] < 80:
-        items.append({
-            "kind": "collection", "severity": "warning",
-            "title": f"Recouvrement du mois à {str(finance['this_month']['rate']).replace('.', ',')} %",
-            "amount": None, "href": "/espace/echeances?etat=non_payee",
-        })
-    if portfolio and portfolio["units_by_status"].get("FREE"):
-        count = portfolio["units_by_status"]["FREE"]
-        items.append({
-            "kind": "vacancy", "severity": "info",
-            "title": f"{count} lot{'s' if count > 1 else ''} libre{'s' if count > 1 else ''} à louer",
-            "amount": None, "href": "/espace/annonces",
-        })
+        add(
+            "leases_ending", "warning",
+            f"{_plural(count, 'bail', 'baux')} à renouveler",
+            f"{first['tenant']}, {first['unit']}, dans {first['days_left']} jours",
+            f"/espace/baux/{first['id']}" if count == 1 else "/espace/baux",
+            count=count, date_=first["end_date"],
+        )
     if listings and listings["interests_30d"]:
         count = listings["interests_30d"]
-        items.append({
-            "kind": "interests", "severity": "success",
-            "title": f"{count} demande{'s' if count > 1 else ''} de visite en 30 jours",
-            "amount": None, "href": "/espace/annonces",
-        })
+        add(
+            "interests", "info",
+            f"{_plural(count, 'demande de visite', 'demandes de visite')}",
+            f"30 derniers jours, sur {_plural(listings['published'], 'annonce')}",
+            "/espace/annonces", count=count,
+        )
+    if listings and listings["unlisted_count"]:
+        # Seuls les lots libres sans annonce demandent une action : les autres sont déjà sur le portail.
+        count = listings["unlisted_count"]
+        first = listings["unlisted_units"][0]
+        add(
+            "vacancy", "info",
+            f"{_plural(count, 'lot libre', 'lots libres')} sans annonce",
+            "Publier une annonce sur le portail",
+            f"/espace/annonces?lot={first['id']}", count=count,
+        )
+    elif not listings and portfolio and portfolio["units_by_status"].get("FREE"):
+        count = portfolio["units_by_status"]["FREE"]
+        add("vacancy", "info", f"{_plural(count, 'lot libre', 'lots libres')} à louer", "Voir les biens", "/espace/biens", count=count)
     return items
 
 
@@ -407,3 +464,22 @@ def build_dashboard(organization, capabilities, *, months=12, today=None, reques
     data["insights"] = insights(data, today)
     return data
 
+
+def nav_counters(organization, capabilities, today=None):
+    """
+    Compteurs de la barre latérale (biens, échéances en retard, tickets ouverts), en trois requêtes
+    simples pour être rafraîchis sur chaque écran. Chacun vaut `None` si le rôle ne voit pas l'écran.
+    """
+    today = today or timezone.localdate()
+    can = capabilities.__contains__
+    overdue = None
+    if can("payment.schedule.view"):
+        overdue = schedules_with_remaining(organization).filter(is_paid=False, due_date__lt=today, remaining__gt=0).count()
+    return {
+        "properties": Property.objects.filter(organization=organization).count() if can("property.view") else None,
+        "overdue_schedules": overdue,
+        "open_tickets": (
+            MaintenanceTicket.objects.filter(unit__building__property__organization=organization, status__in=OPEN_TICKET_STATUSES).count()
+            if can("maintenance.ticket.view") else None
+        ),
+    }

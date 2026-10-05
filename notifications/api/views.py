@@ -1,4 +1,4 @@
-from django.db.models import Q
+from django.db.models import Count, Q
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import generics
@@ -66,7 +66,23 @@ def inapp_scope(request, *, sync=False):
 	return InAppNotification.objects.filter(scope, user=request.user)
 
 
-@extend_schema(parameters=[OpenApiParameter("unread", OpenApiTypes.BOOL, description="Seulement les non lues.")])
+# Onglets de la page Notifications : chaque catégorie regroupe un ou plusieurs types.
+CATEGORIES = {
+	"retards": ("RENT_OVERDUE",),
+	"visites": ("VISIT_REQUEST",),
+	"paiements": ("PAYMENT_RECEIVED",),
+	"maintenance": ("TICKET_CREATED", "TICKET_ASSIGNED"),
+	"baux": ("LEASE_ENDING",),
+	"plateforme": ("TRIAL_ENDING", "DEMO_REQUEST"),
+}
+
+
+@extend_schema(
+	parameters=[
+		OpenApiParameter("unread", OpenApiTypes.BOOL, description="Seulement les non lues."),
+		OpenApiParameter("category", OpenApiTypes.STR, enum=list(CATEGORIES), description="Onglet : un groupe de types de notification."),
+	]
+)
 class InAppNotificationListAPIView(generics.ListAPIView):
 	permission_classes = [IsAuthenticated]
 	serializer_class = InAppNotificationSerializer
@@ -76,17 +92,26 @@ class InAppNotificationListAPIView(generics.ListAPIView):
 		queryset = inapp_scope(self.request, sync=True).order_by("-created_at", "-id")
 		if self.request.query_params.get("unread") in ("1", "true"):
 			queryset = queryset.filter(read=False)
+		category = self.request.query_params.get("category")
+		if category in CATEGORIES:
+			queryset = queryset.filter(kind__in=CATEGORIES[category])
 		return queryset
 
 
 class InAppSummaryAPIView(APIView):
-	"""Nombre de notifications non lues (pastille de la cloche, interrogée régulièrement)."""
+	"""Non lues (point de la cloche, interrogé régulièrement), total et nombre par catégorie (onglets)."""
 
 	permission_classes = [IsAuthenticated]
 
 	@extend_schema(responses=InAppSummarySerializer)
 	def get(self, request):
-		return Response({"unread": inapp_scope(request, sync=True).filter(read=False).count()})
+		scope = inapp_scope(request, sync=True)
+		by_kind = dict(scope.values_list("kind").annotate(total=Count("id")))
+		return Response({
+			"unread": scope.filter(read=False).count(),
+			"total": sum(by_kind.values()),
+			"categories": {key: sum(by_kind.get(kind, 0) for kind in kinds) for key, kinds in CATEGORIES.items()},
+		})
 
 
 class InAppReadAllAPIView(APIView):

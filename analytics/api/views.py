@@ -5,7 +5,7 @@ from rest_framework.views import APIView
 
 from access.catalog import CAPABILITIES
 from access.permissions import HasCapability, get_membership_capabilities
-from analytics.dashboard import build_dashboard
+from analytics.dashboard import build_dashboard, nav_counters
 
 from analytics.models import BuildingKPI, FinancialSnapshot, Insight
 from organizations.scoping import OrganizationScopedMixin
@@ -13,6 +13,7 @@ from organizations.scoping import OrganizationScopedMixin
 from .serializers import (
 	BuildingKPISerializer,
 	DashboardSerializer,
+	NavCountersSerializer,
 	FinancialSnapshotSerializer,
 	InsightSerializer,
 )
@@ -60,3 +61,14 @@ class DashboardAPIView(APIView):
 		capabilities = set(CAPABILITIES) if request.user.is_superuser else get_membership_capabilities(request)
 		data = build_dashboard(request.organization, capabilities, months=months, request=request)
 		return Response(DashboardSerializer(data).data)
+
+
+class NavCountersAPIView(APIView):
+	"""Compteurs de la barre latérale de l'agence active ; `null` pour les écrans que le rôle ne voit pas."""
+
+	permission_classes = [HasCapability]
+
+	@extend_schema(responses=NavCountersSerializer)
+	def get(self, request):
+		capabilities = set(CAPABILITIES) if request.user.is_superuser else get_membership_capabilities(request)
+		return Response(NavCountersSerializer(nav_counters(request.organization, capabilities)).data)

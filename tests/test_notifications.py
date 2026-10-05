@@ -85,12 +85,16 @@ class InAppNotificationTests(DahooTestCase):
     def test_summary_and_read_all(self):
         for title in ("Un", "Deux"):
             InAppNotification.objects.create(user=self.admin_a, organization=self.org_a, kind="TICKET_CREATED", title=title)
-        self.assertEqual(self.api_a.get(f"{INAPP}summary/").json(), {"unread": 2})
+        InAppNotification.objects.create(user=self.admin_a, organization=self.org_a, kind="RENT_OVERDUE", title="Retard", read=True)
+        summary = self.api_a.get(f"{INAPP}summary/").json()
+        self.assertEqual((summary["unread"], summary["total"]), (2, 3))
+        self.assertEqual((summary["categories"]["maintenance"], summary["categories"]["retards"]), (2, 1))
+        self.assertEqual([row["title"] for row in results(self.api_a.get(INAPP, {"category": "retards"}))], ["Retard"])
         unread = results(self.api_a.get(INAPP, {"unread": "true"}))
         self.assertEqual(len(unread), 2)
         self.api_a.patch(f"{INAPP}{unread[0]['id']}/", {"read": True}, format="json")
         self.assertEqual(self.api_a.post(f"{INAPP}read-all/").json(), {"updated": 1})
-        self.assertEqual(self.api_a.get(f"{INAPP}summary/").json(), {"unread": 0})
+        self.assertEqual(self.api_a.get(f"{INAPP}summary/").json()["unread"], 0)
 
     def test_platform_admin_without_agency_sees_platform_notifications(self):
         staff = make_user(is_staff=True)
