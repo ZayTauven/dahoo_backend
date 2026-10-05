@@ -39,11 +39,14 @@ class LeaseContractSerializer(serializers.ModelSerializer):
             "charges_amount",
             "deposit_amount",
             "payment_frequency",
+            "due_day",
+            "auto_schedules",
+            "schedules_from",
             "created_by",
             "created_at",
             "signed_at",
         ]
-        read_only_fields = ["status", "created_by", "created_at", "signed_at"]
+        read_only_fields = ["status", "auto_schedules", "schedules_from", "created_by", "created_at", "signed_at"]
         extra_kwargs = {
             "rent_amount": {"min_value": 0},
             "charges_amount": {"min_value": 0},
@@ -59,6 +62,50 @@ class LeaseContractSerializer(serializers.ModelSerializer):
         if start and end and end <= start:
             raise serializers.ValidationError({"end_date": "La date de fin doit être postérieure au début."})
         return attrs
+
+
+class AutoSchedulesSerializer(serializers.Serializer):
+    """Échéancier automatique : à l'activation (désactivable) ou pour un bail déjà actif."""
+
+    auto_schedules = serializers.BooleanField(default=True)
+    # Première période facturée : début du bail par défaut, ou début de la période en cours pour
+    # reprendre un bail ancien sans recréer ses loyers passés.
+    schedules_from = serializers.DateField(required=False, allow_null=True)
+
+    def validate_schedules_from(self, value):
+        lease = self.context["lease"]
+        if value is None:
+            return value
+        if value < lease.start_date:
+            raise serializers.ValidationError("La date doit suivre le début du bail.")
+        if lease.end_date and value > lease.end_date:
+            raise serializers.ValidationError("La date doit précéder la fin du bail.")
+        return value
+
+
+class LeaseWithSchedulesSerializer(LeaseContractSerializer):
+    created_schedules = serializers.IntegerField(read_only=True)
+
+    class Meta(LeaseContractSerializer.Meta):
+        fields = [*LeaseContractSerializer.Meta.fields, "created_schedules"]
+
+
+class AutoSchedulesOptionSerializer(serializers.Serializer):
+    schedules_from = serializers.DateField()
+    count = serializers.IntegerField()
+    total = serializers.DecimalField(max_digits=14, decimal_places=2)
+    first_due = serializers.DateField(allow_null=True)
+    prorated = serializers.BooleanField(help_text="Une des échéances est calculée au prorata.")
+
+
+class AutoSchedulesPreviewSerializer(serializers.Serializer):
+    """Ce que créerait l'échéancier automatique, aujourd'hui."""
+
+    from_start = AutoSchedulesOptionSerializer()
+    # Absent quand le bail commence dans la période en cours ou plus tard, ou que ses loyers passés
+    # sont déjà saisis (le choix ne changerait rien).
+    from_current = AutoSchedulesOptionSerializer(allow_null=True)
+    horizon_days = serializers.IntegerField()
 
 
 class TenantSerializer(serializers.ModelSerializer):

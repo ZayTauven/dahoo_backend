@@ -2,6 +2,7 @@ from django.urls import path
 
 from .views import (
     LeaseActivateAPIView,
+    LeaseAutoSchedulesAPIView,
     LeaseCancelAPIView,
     LeaseCompleteAPIView,
     LeaseDetailAPIView,
@@ -20,4 +21,5 @@ urlpatterns = [
     path("<int:pk>/terminate/", LeaseTerminateAPIView.as_view()),
     path("<int:pk>/complete/", LeaseCompleteAPIView.as_view()),
     path("<int:pk>/cancel/", LeaseCancelAPIView.as_view()),
+    path("<int:pk>/auto-schedules/", LeaseAutoSchedulesAPIView.as_view()),
 ]

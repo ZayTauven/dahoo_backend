@@ -45,4 +45,20 @@ def change_lease_status(contract, new_status):
     if new_status == "ACTIVE" or previous == "ACTIVE":
         contract.unit.status = UNIT_STATUS_ON_LEASE[new_status]
         contract.unit.save(update_fields=["status"])
+
+    if new_status in ("TERMINATED", "CANCELLED"):
+        from payments.schedules import drop_future_schedules
+
+        drop_future_schedules(contract)
     return contract
+
+
+@transaction.atomic
+def activate_lease(contract, *, auto_schedules=True, schedules_from=None):
+    """Active le bail puis, si demandé, son échéancier automatique. Renvoie (bail, échéances créées)."""
+    from payments.schedules import enable_auto_schedules
+
+    contract = change_lease_status(contract, "ACTIVE")
+    if not auto_schedules:
+        return contract, []
+    return enable_auto_schedules(contract, schedules_from=schedules_from or contract.start_date)

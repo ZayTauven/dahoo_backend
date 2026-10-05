@@ -91,14 +91,17 @@ def _throttled(key, force):
 
 
 def sync_reminders(organization, *, today=None, force=False):
-    """Loyers en retard, baux qui se terminent et fin d'essai de l'agence."""
+    """Échéancier automatique, puis loyers en retard, baux qui se terminent et fin d'essai de l'agence."""
     if _throttled(f"notifications:sync:{organization.pk}", force):
         return
     from analytics.dashboard import schedules_with_remaining
     from leases.models import LeaseContract
+    from payments.schedules import extend_schedules
     from subscriptions.services import ACCESS_TRIAL, get_access_status
 
     today = today or timezone.localdate()
+    # Les loyers dus d'ici un mois sont créés avant de chercher les retards.
+    extend_schedules(organization, today=today)
 
     overdue = (
         schedules_with_remaining(organization)

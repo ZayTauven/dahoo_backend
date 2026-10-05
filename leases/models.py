@@ -1,3 +1,4 @@
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.conf import settings
 from properties.models import Unit
@@ -70,6 +71,15 @@ class LeaseContract(Contract):
         ],
         default="MONTHLY"
     )
+
+    # Jour du mois où le loyer de chaque période est dû (28 au plus, pour exister tous les mois).
+    due_day = models.PositiveSmallIntegerField(
+        default=5, validators=[MinValueValidator(1), MaxValueValidator(28)]
+    )
+    # Échéancier automatique (payments/schedules.py) : les loyers sont créés un mois avant leur date,
+    # pour les périodes qui commencent à partir de `schedules_from`.
+    auto_schedules = models.BooleanField(default=False)
+    schedules_from = models.DateField(null=True, blank=True)
 
 # Modèle pour les contrats de vente
 class SaleContract(Contract):

@@ -19,6 +19,7 @@ from leases.tenants import register_tenant
 from listings.models import Listing, Prospect, ProspectInterest
 from maintenance.models import MaintenanceCategory, MaintenanceLog, MaintenanceTicket
 from payments.models import Payment, PaymentMethod, PaymentSchedule
+from payments.schedules import extend_schedules
 from payments.services import allocate_payment
 from properties.models import Building, Property, Unit
 
@@ -88,6 +89,7 @@ def _seed_rentals(organization, admin, building, rng, today):
             organization=organization, unit=unit, tenant=tenant_user, created_by=admin,
             start_date=month_start(today, months), end_date=today + timedelta(days=end_in) if end_in else None,
             rent_amount=Decimal(rent), charges_amount=Decimal(charges), deposit_amount=Decimal(rent) * 2,
+            due_day=5, auto_schedules=True, schedules_from=month_start(today, months),
         )
         change_lease_status(lease, "ACTIVE")
         amount = Decimal(rent) + Decimal(charges)
@@ -176,11 +178,5 @@ def seed_history(organization, admin):
 
 
 def seed_upcoming(organization):
-    """Échéance du mois prochain pour chaque bail actif (idempotent) : alimente « Échéances à venir »."""
-    today = date.today()
-    next_due = month_start(today, -1).replace(day=5)
-    for lease in LeaseContract.objects.filter(organization=organization, status="ACTIVE"):
-        PaymentSchedule.objects.get_or_create(
-            organization=organization, lease_contract=lease, schedule_type="RENT", due_date=next_due,
-            defaults={"amount_due": lease.rent_amount + lease.charges_amount},
-        )
+    """Loyers dus d'ici un mois des baux automatiques (idempotent) : alimente « Échéances à venir »."""
+    extend_schedules(organization)

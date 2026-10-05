@@ -5,7 +5,7 @@ from organizations.models import Organization
 
 
 class Command(BaseCommand):
-    help = "Crée les rappels (loyers en retard, fins de bail, fins d'essai) : à planifier une fois par jour."
+    help = "Crée les loyers à venir des baux automatiques et les rappels (retards, fins de bail, fins d'essai) : une fois par jour."
 
     def handle(self, *args, **options):
         organizations = Organization.objects.filter(is_active=True)

@@ -8,11 +8,19 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from leases.models import LeaseContract, Tenant
-from leases.services import change_lease_status
+from leases.services import activate_lease, change_lease_status
 from leases.tenants import tenant_name_subquery
 from organizations.scoping import OrganizationScopedMixin
 
-from .serializers import LeaseContractSerializer, TenantSerializer
+from payments.schedules import disable_auto_schedules, enable_auto_schedules, preview_auto_schedules
+
+from .serializers import (
+    AutoSchedulesPreviewSerializer,
+    AutoSchedulesSerializer,
+    LeaseContractSerializer,
+    LeaseWithSchedulesSerializer,
+    TenantSerializer,
+)
 
 
 def leases_with_labels():
@@ -60,9 +68,51 @@ class LeaseTransitionAPIView(OrganizationScopedMixin, APIView):
         return Response(LeaseContractSerializer(contract, context={"request": request}).data)
 
 
-class LeaseActivateAPIView(LeaseTransitionAPIView):
+class LeaseActivateAPIView(OrganizationScopedMixin, APIView):
     required_capability = "lease.activate"
-    target_status = "ACTIVE"
+
+    @extend_schema(request=AutoSchedulesSerializer, responses=LeaseWithSchedulesSerializer)
+    def post(self, request, pk):
+        contract = get_object_or_404(LeaseContract, pk=pk, organization=self.organization)
+        options = AutoSchedulesSerializer(data=request.data, context={"lease": contract})
+        options.is_valid(raise_exception=True)
+        contract, created = activate_lease(contract, **options.validated_data)
+        contract.created_schedules = len(created)
+        return Response(LeaseWithSchedulesSerializer(contract, context={"request": request}).data)
+
+
+class LeaseAutoSchedulesAPIView(OrganizationScopedMixin, APIView):
+    """
+    Échéancier automatique d'un bail. GET : aperçu de ce qui serait créé (aussi pour un brouillon,
+    avant l'activation) ; POST : l'active sur un bail actif ; DELETE : arrête les créations.
+    """
+
+    capability_resource = "payment.schedule"
+
+    def get_lease(self, pk):
+        return get_object_or_404(LeaseContract, pk=pk, organization=self.organization)
+
+    @extend_schema(responses=AutoSchedulesPreviewSerializer)
+    def get(self, request, pk):
+        return Response(AutoSchedulesPreviewSerializer(preview_auto_schedules(self.get_lease(pk))).data)
+
+    @extend_schema(request=AutoSchedulesSerializer, responses=LeaseWithSchedulesSerializer)
+    def post(self, request, pk):
+        contract = self.get_lease(pk)
+        if contract.status != "ACTIVE":
+            raise ValidationError({"status": "L'échéancier automatique ne s'applique qu'à un bail actif."})
+        options = AutoSchedulesSerializer(data=request.data, context={"lease": contract})
+        options.is_valid(raise_exception=True)
+        contract, created = enable_auto_schedules(
+            contract, schedules_from=options.validated_data.get("schedules_from") or contract.start_date
+        )
+        contract.created_schedules = len(created)
+        return Response(LeaseWithSchedulesSerializer(contract, context={"request": request}).data)
+
+    @extend_schema(request=None, responses=LeaseContractSerializer)
+    def delete(self, request, pk):
+        contract = disable_auto_schedules(self.get_lease(pk))
+        return Response(LeaseContractSerializer(contract, context={"request": request}).data)
 
 
 class LeaseTerminateAPIView(LeaseTransitionAPIView):

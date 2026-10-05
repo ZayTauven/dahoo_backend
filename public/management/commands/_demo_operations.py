@@ -77,10 +77,12 @@ def seed_operations(organization, admin):
         lease = LeaseContract.objects.create(
             organization=organization, unit=unit, tenant=tenant_user, created_by=admin, start_date=start,
             rent_amount=Decimal(rent), charges_amount=Decimal(charges), deposit_amount=Decimal(rent) * 2,
+            due_day=5, auto_schedules=True, schedules_from=start,
         )
         change_lease_status(lease, "ACTIVE")
 
-        # Une échéance par mois (le 5), du début du bail au mois courant.
+        # Une échéance par mois (le 5), du début du bail au mois courant ; l'échéancier automatique
+        # prend le relais pour les suivantes.
         schedules = [
             PaymentSchedule.objects.create(
                 organization=organization, lease_contract=lease, schedule_type="RENT",
