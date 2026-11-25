@@ -58,6 +58,10 @@ class LeaseContract(Contract):
 
     start_date = models.DateField()
     end_date = models.DateField(null=True, blank=True)
+    # Départ réel du locataire (le terme du bail est `end_date`).
+    ended_on = models.DateField(null=True, blank=True)
+    # La caution demandée n'a jamais été versée (son échéance a été retirée à la sortie) : rien à rendre.
+    deposit_unpaid = models.BooleanField(default=False)
 
     rent_amount = models.DecimalField(max_digits=12, decimal_places=2)
     charges_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)

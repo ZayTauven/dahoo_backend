@@ -1,0 +1,17 @@
+{% extends "emails/base.html" %}
+{% block title %}Une panne prioritaire est signalée{% endblock %}
+{% block preheader %}{{ category }}, {{ unit }}.{% endblock %}
+{% block heading %}Une panne prioritaire est signalée{% endblock %}
+{% block body %}
+<tr><td class="sc-pad" style="padding:14px 36px 0 36px;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:26px;color:#3b3d5c;mso-line-height-rule:exactly;">Bonjour {{ first_name }},</td></tr>
+<tr><td class="sc-pad" style="padding:14px 36px 0 36px;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:26px;color:#3b3d5c;mso-line-height-rule:exactly;">Une nouvelle panne demande une intervention rapide.</td></tr>
+{% include "emails/_facts_open.html" %}
+{% include "emails/_fact.html" with label="Lot" value=unit %}
+{% include "emails/_fact.html" with label="Bien" value=property %}
+{% include "emails/_fact.html" with label="Catégorie" value=category %}
+{% include "emails/_fact.html" with label="Priorité" value=priority %}
+{% include "emails/_facts_close.html" %}
+<tr><td class="sc-pad" style="padding:24px 36px 0 36px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="width:100%;background-color:#f6f2ed;border-radius:6px;"><tr><td style="padding:18px 22px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:24px;color:#3b3d5c;mso-line-height-rule:exactly;">{{ description }}</td></tr></table></td></tr>
+{% include "emails/_button.html" with text="Voir la panne" %}
+{% endblock %}
+{% block preferences %}<a href="{{ site_url }}/espace" style="color:#283891;text-decoration:underline;">Régler mes e-mails</a> depuis le menu du compte.<br>{% endblock %}

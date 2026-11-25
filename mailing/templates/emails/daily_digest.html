@@ -1,0 +1,16 @@
+{% extends "emails/base.html" %}
+{% block title %}Votre point du jour{% endblock %}
+{% block preheader %}{{ organization }}, {{ date }}.{% endblock %}
+{% block heading %}Votre point du jour{% endblock %}
+{% block body %}
+<tr><td class="sc-pad" style="padding:14px 36px 0 36px;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:26px;color:#3b3d5c;mso-line-height-rule:exactly;">Bonjour {{ first_name }}, voici ce qui demande votre attention chez <b style="color:#12153a;">{{ organization }}</b> ce {{ date }}.</td></tr>
+{% for section in sections %}
+<tr><td class="sc-pad" style="padding:26px 36px 0 36px;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:24px;font-weight:bold;"><a href="{{ section.url }}" style="color:#12153a;text-decoration:none;">{{ section.title }}</a></td></tr>
+{% include "emails/_facts_open.html" %}
+{% for row in section.rows %}{% include "emails/_fact.html" with label=row.label value=row.value %}{% endfor %}
+{% include "emails/_facts_close.html" %}
+{% if section.more %}<tr><td class="sc-pad" style="padding:10px 36px 0 36px;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:21px;"><a href="{{ section.url }}" style="color:#283891;">et {{ section.more }} de plus</a></td></tr>{% endif %}
+{% endfor %}
+{% include "emails/_button.html" with text="Ouvrir Dahoo" %}
+{% endblock %}
+{% block preferences %}<a href="{{ site_url }}/espace" style="color:#283891;text-decoration:underline;">Régler mes e-mails</a> depuis le menu du compte.<br>{% endblock %}

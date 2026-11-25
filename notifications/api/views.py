@@ -73,7 +73,7 @@ CATEGORIES = {
 	"paiements": ("PAYMENT_RECEIVED",),
 	"maintenance": ("TICKET_CREATED", "TICKET_ASSIGNED"),
 	"baux": ("LEASE_ENDING",),
-	"plateforme": ("TRIAL_ENDING", "DEMO_REQUEST"),
+	"plateforme": ("TRIAL_ENDING", "SUBSCRIPTION_ENDING", "DEMO_REQUEST", "PLAN_REQUEST"),
 }
 
 

@@ -95,7 +95,9 @@ class InAppNotification(models.Model):
         ("RENT_OVERDUE", "Loyer en retard"),
         ("LEASE_ENDING", "Bail arrivant à échéance"),
         ("TRIAL_ENDING", "Fin d'essai"),
+        ("SUBSCRIPTION_ENDING", "Fin d'abonnement"),
         ("DEMO_REQUEST", "Demande de démo"),
+        ("PLAN_REQUEST", "Demande d'offre"),
     ]
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="inapp_notifications")

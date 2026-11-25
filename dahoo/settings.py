@@ -26,6 +26,12 @@ def env_bool(name, default=False):
     return os.getenv(name, str(default)).strip().lower() in ("1", "true", "yes", "on")
 
 
+def env_text(name, default=""):
+    """Valeur texte. « NOM=   # commentaire » : dotenv rend le commentaire, on le tient pour vide."""
+    value = os.getenv(name, "").strip()
+    return default if not value or value.startswith("#") else value
+
+
 def env_list(name, default=""):
     return [item.strip() for item in os.getenv(name, default).split(",") if item.strip()]
 
@@ -61,15 +67,21 @@ INSTALLED_APPS = [
     "users",
     "organizations",
     "access",
+    "owners",
     "properties",
     "leases",
     "payments",
+    "inspections",
+    "deposits",
     "maintenance",
     "listings",
     "subscriptions",
     "notifications",
     "field_ops",
     "analytics",
+    "documents",
+    "imports",
+    "mailing",
     "public",
     "search",
 
@@ -139,6 +151,9 @@ REST_FRAMEWORK = {
         "login": os.getenv("THROTTLE_LOGIN", "10/min"),
         "public_interest": os.getenv("THROTTLE_PUBLIC_INTEREST", "10/hour"),
         "demo_request": os.getenv("THROTTLE_DEMO_REQUEST", "5/hour"),
+        "password_reset": os.getenv("THROTTLE_PASSWORD_RESET", "5/hour"),
+        "email_send": os.getenv("THROTTLE_EMAIL_SEND", "300/hour"),
+        "shared_document": os.getenv("THROTTLE_SHARED_DOCUMENT", "30/min"),
     },
     # Filtres (django-filter), ?search= et ?ordering= : actifs sur les vues qui les déclarent.
     "DEFAULT_FILTER_BACKENDS": (
@@ -171,6 +186,16 @@ SPECTACULAR_SETTINGS = {
         "TicketStatusEnum": "maintenance.models.MaintenanceTicket.STATUS_CHOICES",
         "PriorityEnum": "maintenance.models.MaintenanceTicket.PRIORITY_CHOICES",
         "SubscriptionStatusEnum": "subscriptions.models.Subscription.STATUS",
+        "InspectionKindEnum": "inspections.models.Inspection.KINDS",
+        "InspectionStatusEnum": "inspections.models.Inspection.STATUS",
+        "InspectionConditionEnum": "inspections.models.InspectionItem.CONDITIONS",
+        "DepositDeductionKindEnum": "deposits.models.DepositDeduction.KINDS",
+        "DepositStateEnum": "deposits.services.DEPOSIT_STATES",
+        "SubscriptionStateEnum": "subscriptions.models.Subscription.STATES",
+        "BillingStateEnum": "subscriptions.billing.BILLING_STATES",
+        "BillingTypeEnum": "subscriptions.models.SubscriptionPlan.BILLING_TYPE",
+        "PlanAudienceEnum": "subscriptions.models.SubscriptionPlan.AUDIENCES",
+        "PlanRequestStatusEnum": "subscriptions.models.PlanRequest.STATUS",
         "NotificationStatusEnum": "notifications.models.Notification.STATUS",
         "UnitCategoryEnum": "properties.models.Unit.CATEGORY_CHOICES",
         "ListingTypeEnum": "listings.models.Listing.LISTING_TYPE",
@@ -179,8 +204,43 @@ SPECTACULAR_SETTINGS = {
         "InAppNotificationKindEnum": "notifications.models.InAppNotification.KINDS",
         "SearchResultTypeEnum": "search.views.RESULT_TYPES",
         "ChromeSchemeEnum": "organizations.theme.SCHEMES",
+        "OrganizationKindEnum": "organizations.models.Organization.KINDS",
+        "PayoutChannelEnum": "owners.models.Owner.PAYOUT_CHANNELS",
+        "ExpenseCategoryEnum": "owners.models.Expense.CATEGORIES",
+        "ReminderChannelEnum": "payments.models.RentReminder.CHANNELS",
+        "RentStatusEnum": "payments.rent_roll.RENT_STATUSES",
+        "ImportRowStatusEnum": "imports.plan.ROW_STATUSES",
+        "ImportFirstPeriodEnum": "imports.commit.FIRST_PERIODS",
     },
 }
+
+# Adresse publique du front : liens des documents envoyés aux locataires et aux bailleurs.
+PUBLIC_SITE_URL = os.getenv("PUBLIC_SITE_URL", "http://localhost:3000").rstrip("/")
+# Durée de validité de ces liens (400 jours par défaut).
+DOCUMENT_LINK_MAX_AGE = int(os.getenv("DOCUMENT_LINK_MAX_AGE", str(400 * 24 * 3600)))
+
+# E-mails. Sans identifiants SMTP, les messages s'affichent dans la console.
+EMAIL_HOST = env_text("EMAIL_HOST") or "smtp.gmail.com"
+EMAIL_PORT = int(os.getenv("EMAIL_PORT") or 587)
+EMAIL_HOST_USER = env_text("EMAIL_HOST_USER")
+# Google affiche le mot de passe d'application en quatre blocs : les espaces sont retirés.
+EMAIL_HOST_PASSWORD = env_text("EMAIL_HOST_PASSWORD").replace(" ", "")
+EMAIL_USE_TLS = EMAIL_PORT == 587
+EMAIL_USE_SSL = EMAIL_PORT == 465
+EMAIL_TIMEOUT = 15
+EMAIL_BACKEND = f"django.core.mail.backends.{'smtp' if EMAIL_HOST_USER else 'console'}.EmailBackend"
+DEFAULT_FROM_EMAIL = env_text("DEFAULT_FROM_EMAIL") or f"Dahoo <{EMAIL_HOST_USER or 'no-reply@dahoo.sn'}>"
+EMAIL_REPLY_TO = env_text("EMAIL_REPLY_TO")
+# Coupe-circuit : False laisse tout fonctionner sans rien envoyer.
+EMAIL_ENABLED = env_bool("EMAIL_ENABLED", True)
+# Recette : toutes les adresses sont remplacées par celle-ci.
+EMAIL_TEST_RECIPIENT = env_text("EMAIL_TEST_RECIPIENT")
+# Envoi dans un fil séparé, hors de la requête ; `send_emails` réessaie ce qui a échoué.
+EMAIL_SEND_IN_BACKGROUND = env_bool("EMAIL_SEND_IN_BACKGROUND", True)
+# Adresses fictives des comptes de démonstration : aucun envoi.
+EMAIL_BLOCKED_DOMAINS = set(env_list("EMAIL_BLOCKED_DOMAINS", "teranga-demo.sn,keurimmo.sn,saly-horizon.sn,rovesta.sn,mucci.sn,centralestate.sn"))
+# Durée du lien « nouveau mot de passe », en secondes.
+PASSWORD_RESET_TIMEOUT = 3600
 
 # CORS : origines du front autorisées à appeler l'API (ex. http://localhost:3000)
 CORS_ALLOWED_ORIGINS = env_list("CORS_ALLOWED_ORIGINS", "http://localhost:3000")
@@ -255,6 +315,8 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 # en production, les servir via le serveur web ou un stockage objet.
 MEDIA_URL = "media/"
 MEDIA_ROOT = BASE_DIR / "media"
+# Fichiers privés (photos d'états des lieux) : jamais servis par le serveur web.
+PRIVATE_MEDIA_ROOT = Path(os.getenv("PRIVATE_MEDIA_ROOT") or BASE_DIR / "private")
 
 
 # Sécurité en production (actif dès que DEBUG=False)

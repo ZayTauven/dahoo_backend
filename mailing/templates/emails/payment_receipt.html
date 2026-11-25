@@ -1,0 +1,15 @@
+{% extends "emails/base.html" %}
+{% block title %}Nous avons bien reçu votre paiement{% endblock %}
+{% block preheader %}{{ amount }}, {{ date }}.{% endblock %}
+{% block heading %}Nous avons bien reçu votre paiement{% endblock %}
+{% block body %}
+<tr><td class="sc-pad" style="padding:14px 36px 0 36px;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:26px;color:#3b3d5c;mso-line-height-rule:exactly;">Bonjour {{ name }},</td></tr>
+<tr><td class="sc-pad" style="padding:14px 36px 0 36px;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:26px;color:#3b3d5c;mso-line-height-rule:exactly;">Nous avons enregistré votre paiement. Votre reçu est à votre disposition.</td></tr>
+{% include "emails/_facts_open.html" %}
+{% include "emails/_fact.html" with label="Montant" value=amount %}
+{% include "emails/_fact.html" with label="Moyen" value=method %}
+{% include "emails/_fact.html" with label="Date" value=date %}
+{% include "emails/_fact.html" with label="Référence" value=reference %}
+{% include "emails/_facts_close.html" %}
+{% include "emails/_button.html" with text="Ouvrir le reçu" %}
+{% endblock %}

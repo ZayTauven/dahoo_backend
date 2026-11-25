@@ -1,4 +1,5 @@
 from django.contrib.auth import get_user_model
+from django.utils import timezone
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
@@ -35,6 +36,7 @@ class LeaseContractSerializer(serializers.ModelSerializer):
             "tenant_name",
             "start_date",
             "end_date",
+            "ended_on",
             "rent_amount",
             "charges_amount",
             "deposit_amount",
@@ -46,7 +48,7 @@ class LeaseContractSerializer(serializers.ModelSerializer):
             "created_at",
             "signed_at",
         ]
-        read_only_fields = ["status", "auto_schedules", "schedules_from", "created_by", "created_at", "signed_at"]
+        read_only_fields = ["status", "ended_on", "auto_schedules", "schedules_from", "created_by", "created_at", "signed_at"]
         extra_kwargs = {
             "rent_amount": {"min_value": 0},
             "charges_amount": {"min_value": 0},
@@ -57,11 +59,28 @@ class LeaseContractSerializer(serializers.ModelSerializer):
     def get_tenant_name(self, contract):
         return person_name(contract, "tenant_profile_name", contract.tenant, contract.organization_id)
 
+    # Champs d'un bail actif modifiables par avenant : les échéances déjà créées ne changent pas.
+    AMENDABLE = {"rent_amount", "charges_amount", "due_day", "end_date"}
+
     def validate(self, attrs):
-        start, end = attrs.get("start_date"), attrs.get("end_date")
+        lease = self.instance
+        if lease is not None:
+            changed = {field for field, value in attrs.items() if value != getattr(lease, field)}
+            if lease.status == "ACTIVE":
+                changed -= self.AMENDABLE
+            if changed and lease.status != "DRAFT":
+                message = f"Non modifiable : le bail est « {lease.get_status_display()} »."
+                raise serializers.ValidationError({field: message for field in sorted(changed)})
+        start = attrs.get("start_date", getattr(lease, "start_date", None))
+        end = attrs.get("end_date", getattr(lease, "end_date", None))
         if start and end and end <= start:
             raise serializers.ValidationError({"end_date": "La date de fin doit être postérieure au début."})
         return attrs
+
+    def update(self, instance, validated_data):
+        # Nom annoté par la vue : périmé si le locataire change.
+        vars(instance).pop("tenant_profile_name", None)
+        return super().update(instance, validated_data)
 
 
 class AutoSchedulesSerializer(serializers.Serializer):
@@ -81,6 +100,11 @@ class AutoSchedulesSerializer(serializers.Serializer):
         if lease.end_date and value > lease.end_date:
             raise serializers.ValidationError("La date doit précéder la fin du bail.")
         return value
+
+
+class LeaseActivationSerializer(AutoSchedulesSerializer):
+    # Caution à encaisser à l'entrée (inutile pour un bail repris en cours).
+    with_deposit = serializers.BooleanField(default=False)
 
 
 class LeaseWithSchedulesSerializer(LeaseContractSerializer):
@@ -106,6 +130,19 @@ class AutoSchedulesPreviewSerializer(serializers.Serializer):
     # sont déjà saisis (le choix ne changerait rien).
     from_current = AutoSchedulesOptionSerializer(allow_null=True)
     horizon_days = serializers.IntegerField()
+
+
+class LeaseEndSerializer(serializers.Serializer):
+    """Départ du locataire : aujourd'hui par défaut."""
+
+    ended_on = serializers.DateField(required=False)
+
+    def validate_ended_on(self, ended):
+        if ended > timezone.localdate():
+            raise serializers.ValidationError("La date de départ ne peut pas être à venir.")
+        if ended < self.context["lease"].start_date:
+            raise serializers.ValidationError("Le départ ne peut pas précéder le début du bail.")
+        return ended
 
 
 class TenantSerializer(serializers.ModelSerializer):

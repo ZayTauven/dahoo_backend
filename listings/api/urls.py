@@ -1,5 +1,6 @@
 from django.urls import path
 from .views import (
+	ListingCloseAPIView,
 	ListingListCreateAPIView,
 	ListingDetailAPIView,
 	ListingPhotoDetailAPIView,
@@ -15,6 +16,7 @@ urlpatterns = [
 	path("<int:pk>/", ListingDetailAPIView.as_view()),
 	path("<int:pk>/publish/", ListingPublishAPIView.as_view()),
 	path("<int:pk>/unpublish/", ListingUnpublishAPIView.as_view()),
+	path("<int:pk>/close/", ListingCloseAPIView.as_view()),
 	path("<int:pk>/photos/", ListingPhotoListCreateAPIView.as_view()),
 	path("photos/<int:pk>/", ListingPhotoDetailAPIView.as_view()),
 	# Ancienne route publique, conservée : même logique que /api/v1/public/listings/<id>/interest/.

@@ -1,0 +1,14 @@
+{% extends "emails/base.html" %}
+{% block title %}Le décompte de votre caution{% endblock %}
+{% block preheader %}{{ refund }} rendus.{% endblock %}
+{% block heading %}Le décompte de votre caution{% endblock %}
+{% block body %}
+<tr><td class="sc-pad" style="padding:14px 36px 0 36px;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:26px;color:#3b3d5c;mso-line-height-rule:exactly;">Bonjour {{ name }},</td></tr>
+<tr><td class="sc-pad" style="padding:14px 36px 0 36px;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:26px;color:#3b3d5c;mso-line-height-rule:exactly;">Voici le décompte de la caution du logement {{ unit }}, {{ property }}.</td></tr>
+{% include "emails/_facts_open.html" %}
+{% include "emails/_fact.html" with label="Caution" value=held %}
+{% include "emails/_fact.html" with label="Retenues" value=retained %}
+{% include "emails/_fact.html" with label="Montant rendu" value=refund %}
+{% include "emails/_facts_close.html" %}
+{% include "emails/_button.html" with text="Voir le décompte" %}
+{% endblock %}

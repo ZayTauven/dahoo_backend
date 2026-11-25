@@ -1,0 +1,15 @@
+{% extends "emails/base.html" %}
+{% block title %}Votre relevé de gestion de {{ month }}{% endblock %}
+{% block preheader %}Solde à reverser : {{ balance }}.{% endblock %}
+{% block heading %}Votre relevé de gestion de {{ month }}{% endblock %}
+{% block body %}
+<tr><td class="sc-pad" style="padding:14px 36px 0 36px;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:26px;color:#3b3d5c;mso-line-height-rule:exactly;">Bonjour {{ name }},</td></tr>
+<tr><td class="sc-pad" style="padding:14px 36px 0 36px;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:26px;color:#3b3d5c;mso-line-height-rule:exactly;">Voici la synthèse de la gestion de vos biens pour <b style="color:#12153a;">{{ month }}</b>.</td></tr>
+{% include "emails/_facts_open.html" %}
+{% include "emails/_fact.html" with label="Loyers encaissés" value=collected %}
+{% include "emails/_fact.html" with label="Commission" value=commission %}
+{% include "emails/_fact.html" with label="Dépenses" value=expenses %}
+{% include "emails/_fact.html" with label="Solde à reverser" value=balance %}
+{% include "emails/_facts_close.html" %}
+{% include "emails/_button.html" with text="Ouvrir le relevé" %}
+{% endblock %}

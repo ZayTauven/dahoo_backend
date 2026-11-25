@@ -9,6 +9,12 @@ class User(AbstractBaseUser, PermissionsMixin):
     first_name = models.CharField(max_length=100)
     last_name = models.CharField(max_length=100)
 
+    # Seule une adresse confirmée reçoit les données de l'agence et les liens de mot de passe.
+    email_verified_at = models.DateTimeField(null=True, blank=True)
+    # Préférences : point du jour, alertes immédiates (pannes prioritaires ou confiées).
+    email_digest = models.BooleanField(default=True)
+    email_alerts = models.BooleanField(default=True)
+
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
 

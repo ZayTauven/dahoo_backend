@@ -1,42 +1,38 @@
 from django.contrib import admin
-from .models import SubscriptionPlan, Subscription, SubscriptionPayment
+
+from .models import BillingSettings, PlanRequest, Subscription, SubscriptionPayment, SubscriptionPlan
 
 
 @admin.register(SubscriptionPlan)
 class SubscriptionPlanAdmin(admin.ModelAdmin):
-    list_display = ('name', 'billing_type', 'price', 'commission_rate', 'active')
-    list_filter = ('billing_type', 'active')
+    list_display = ('name', 'audience', 'billing_type', 'price', 'commission_rate', 'active', 'limits_trial')
+    list_filter = ('billing_type', 'audience', 'active')
     search_fields = ('name',)
-    list_editable = ('active',)
-    fieldsets = (
-        ('Informations', {'fields': ('name', 'billing_type', 'active')}),
-        ('Tarification', {'fields': ('price', 'commission_rate')}),
-        ('Limites', {'fields': ('max_properties', 'max_units', 'max_users')}),
-    )
-
-
-class SubscriptionPaymentInline(admin.TabularInline):
-    model = SubscriptionPayment
-    extra = 0
-    fields = ('payment',)
 
 
 @admin.register(Subscription)
 class SubscriptionAdmin(admin.ModelAdmin):
-    list_display = ('id', 'organization', 'plan', 'status', 'start_date', 'end_date')
+    list_display = ('id', 'organization', 'plan', 'price', 'status', 'start_date', 'end_date')
     list_filter = ('status', 'plan', 'start_date')
     search_fields = ('organization__name', 'plan__name')
     ordering = ('-start_date',)
     readonly_fields = ('created_at',)
-    inlines = [SubscriptionPaymentInline]
-    fieldsets = (
-        ('Organisation', {'fields': ('organization',)}),
-        ('Plan', {'fields': ('plan', 'status')}),
-        ('Dates', {'fields': ('start_date', 'end_date', 'created_at')}),
-    )
 
 
+# Un règlement s'enregistre et s'annule dans l'espace plateforme (il déplace l'échéance) : lecture seule ici.
 @admin.register(SubscriptionPayment)
 class SubscriptionPaymentAdmin(admin.ModelAdmin):
-    list_display = ('subscription', 'payment')
-    search_fields = ('subscription__id', 'payment__id')
+    list_display = ('id', 'subscription', 'amount', 'period_start', 'period_end', 'paid_on', 'cancelled_at')
+    search_fields = ('subscription__organization__name', 'reference')
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+admin.site.register([PlanRequest, BillingSettings])

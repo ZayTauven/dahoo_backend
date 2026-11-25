@@ -97,7 +97,7 @@ class MaintenanceTicketChangeStatusAPIView(OrganizationScopedMixin, APIView):
 	@extend_schema(request=TicketStatusSerializer, responses=MaintenanceTicketSerializer)
 	def post(self, request, pk):
 		ticket = get_object_or_404(tickets_with_labels(), pk=pk, **{TICKET_ORGANIZATION: self.organization})
-		serializer = TicketStatusSerializer(data=request.data)
+		serializer = TicketStatusSerializer(ticket, data=request.data)
 		serializer.is_valid(raise_exception=True)
 		ticket.status = serializer.validated_data["status"]
 		ticket.save(update_fields=["status", "updated_at"])

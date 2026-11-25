@@ -16,7 +16,7 @@ UNIT_ORGANIZATION = "building__property__organization"
 
 
 def properties_with_counts():
-	return Property.objects.annotate(
+	return Property.objects.select_related("owner").annotate(
 		buildings_count=Count("buildings", distinct=True),
 		units_count=Count("buildings__units", distinct=True),
 		occupied_units_count=Count("buildings__units", filter=Q(buildings__units__status="RENTED"), distinct=True),
@@ -25,10 +25,11 @@ def properties_with_counts():
 
 class PropertyFilter(filters.FilterSet):
 	city = filters.CharFilter(lookup_expr="iexact")
+	owner = filters.NumberFilter(field_name="owner_id")
 
 	class Meta:
 		model = Property
-		fields = ["city"]
+		fields = ["city", "owner"]
 
 
 class PropertyListCreateAPIView(OrganizationScopedMixin, generics.ListCreateAPIView):
@@ -135,7 +136,7 @@ class UnitChangeStatusAPIView(OrganizationScopedMixin, APIView):
 		unit = get_object_or_404(
 			Unit.objects.select_related("building__property"), pk=pk, **{UNIT_ORGANIZATION: self.organization}
 		)
-		serializer = UnitStatusSerializer(data=request.data)
+		serializer = UnitStatusSerializer(unit, data=request.data)
 		serializer.is_valid(raise_exception=True)
 		unit.status = serializer.validated_data["status"]
 		unit.save(update_fields=["status"])

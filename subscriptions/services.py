@@ -3,7 +3,7 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.exceptions import APIException, ValidationError
 
-from subscriptions.models import Subscription
+from subscriptions.models import Subscription, SubscriptionPlan
 
 # Ressource -> (champ de limite du plan, fonction de comptage)
 QUOTAS = {
@@ -27,8 +27,8 @@ ACCESS_EXPIRED = "EXPIRED"
 class SubscriptionRequired(APIException):
     status_code = status.HTTP_402_PAYMENT_REQUIRED
     default_detail = (
-        "Votre période d'essai est terminée. Vos données restent consultables ; "
-        "souscrivez un abonnement pour continuer à les modifier."
+        "Votre essai ou votre abonnement est terminé. Vos données restent consultables ; "
+        "réglez un abonnement pour continuer à les modifier."
     )
     default_code = "subscription_required"
 
@@ -46,26 +46,53 @@ def get_active_subscription(organization):
         active_subscriptions()
         .filter(organization=organization)
         .select_related("plan")
-        .order_by("-start_date")
+        .order_by("-start_date", "-id")
         .first()
     )
 
 
 def check_quota(organization, resource):
-    """
-    Refuse la création si la limite du plan actif est atteinte.
-    Pendant l'essai (pas d'abonnement) ou avec une limite vide, aucune limite n'est appliquée :
-    l'essai est borné dans le temps (voir get_access_status).
-    """
-    limit_field, count = QUOTAS[resource]
-    subscription = get_active_subscription(organization)
-    if subscription is None:
+    """Refuse la création si la limite de l'offre (ou de l'essai) est atteinte ; une limite vide ne bloque rien."""
+    limit, trial = _limit(organization, resource)
+    if limit is None or QUOTAS[resource][1](organization) < limit:
         return
-    limit = getattr(subscription.plan, limit_field)
-    if limit is not None and count(organization) >= limit:
-        raise ValidationError(
-            {"detail": f"Limite de votre abonnement atteinte ({limit} maximum). Passez à un plan supérieur."}
-        )
+    if trial:
+        detail = f"Limite de l'essai atteinte ({limit} maximum). Choisissez une offre pour aller plus loin."
+    else:
+        detail = f"Limite de votre abonnement atteinte ({limit} maximum). Passez à un plan supérieur."
+    raise ValidationError({"detail": detail})
+
+
+def remaining_quota(organization, resource):
+    """Nombre de créations encore permises par l'offre, ou None si rien ne les limite."""
+    limit, _ = _limit(organization, resource)
+    return None if limit is None else max(0, limit - QUOTAS[resource][1](organization))
+
+
+def limiting_plan(organization):
+    """Offre dont les limites s'appliquent, et si c'est au titre de l'essai."""
+    subscription = get_active_subscription(organization)
+    if subscription is not None:
+        return subscription.plan, False
+    if organization.is_internal:
+        return None, False
+    return SubscriptionPlan.objects.filter(limits_trial=True).first(), True
+
+
+def _limit(organization, resource):
+    plan, trial = limiting_plan(organization)
+    return (getattr(plan, QUOTAS[resource][0]) if plan else None), trial
+
+
+USAGE_LABELS = {"property": "Biens", "unit": "Lots", "member": "Utilisateurs"}
+
+
+def build_usage(organization, plan):
+    """Consommation de l'agence face aux limites d'une offre (None : sans limite)."""
+    return [
+        {"resource": resource, "label": USAGE_LABELS[resource], "used": count(organization), "limit": getattr(plan, field) if plan else None}
+        for resource, (field, count) in QUOTAS.items()
+    ]
 
 
 def get_access_status(organization):

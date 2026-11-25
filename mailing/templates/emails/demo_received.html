@@ -1,0 +1,10 @@
+{% extends "emails/base.html" %}
+{% block title %}Nous avons bien reçu votre demande{% endblock %}
+{% block preheader %}Nous vous rappelons très vite.{% endblock %}
+{% block heading %}Nous avons bien reçu votre demande{% endblock %}
+{% block body %}
+<tr><td class="sc-pad" style="padding:14px 36px 0 36px;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:26px;color:#3b3d5c;mso-line-height-rule:exactly;">Bonjour {{ name }},</td></tr>
+<tr><td class="sc-pad" style="padding:14px 36px 0 36px;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:26px;color:#3b3d5c;mso-line-height-rule:exactly;">Merci de votre intérêt pour Dahoo. Nous vous rappelons au <b style="color:#12153a;">{{ phone }}</b> pour convenir d'une démonstration, préparée avec vos propres cas.</td></tr>
+<tr><td class="sc-pad" style="padding:14px 36px 0 36px;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:26px;color:#3b3d5c;mso-line-height-rule:exactly;">D'ici là, vous pouvez essayer l'écran des loyers sur notre site.</td></tr>
+{% include "emails/_button.html" with text="Essayer l'écran" url=site_url|add:"/#essayer" %}
+{% endblock %}

@@ -34,6 +34,26 @@ def tenant_name_subquery(user_ref, organization_ref="organization"):
     return Subquery(profiles.annotate(full_name=full_name).values("full_name")[:1])
 
 
+def tenant_names(organization):
+    """
+    Fonction « compte → nom affiché » pour une agence : le nom de SA fiche locataire, jamais celui
+    qu'une autre agence a saisi sur le compte partagé. Une seule requête, pour les listes.
+    """
+    names = {
+        user_id: f"{first} {last}".strip()
+        for user_id, first, last in Tenant.objects.filter(organization=organization).values_list(
+            "user_id", "first_name", "last_name"
+        )
+    }
+
+    def name(user):
+        if user is None:
+            return ""
+        return names.get(user.pk) or f"{user.first_name} {user.last_name}".strip() or user.phone
+
+    return name
+
+
 def person_name(obj, annotation, user, organization_id):
     """
     Nom affiché : annotation `annotation` (voir tenant_name_subquery) si présente, sinon lecture

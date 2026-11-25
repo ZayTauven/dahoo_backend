@@ -14,6 +14,7 @@ from properties.models import Unit
 from public.models import DemoRequest
 from public.visibility import similar_listings
 from subscriptions.models import SubscriptionPlan
+from users.phone import validate_phone
 
 PROPERTY = "unit.building.property"
 
@@ -144,7 +145,7 @@ class PublicPlanSerializer(serializers.ModelSerializer):
     class Meta:
         model = SubscriptionPlan
         fields = [
-            "id", "name", "billing_type", "billing_type_label", "price", "commission_rate",
+            "id", "name", "description", "audience", "billing_type", "billing_type_label", "price", "commission_rate",
             "max_properties", "max_units", "max_users",
         ]
 
@@ -158,4 +159,4 @@ class DemoRequestSerializer(serializers.ModelSerializer):
         read_only_fields = ["created_at"]
 
     def validate_phone(self, value):
-        return "".join(value.split())
+        return validate_phone(value)

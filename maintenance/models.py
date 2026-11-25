@@ -33,6 +33,15 @@ class MaintenanceTicket(models.Model):
         ("CLOSED", "Clôturé"),
     ]
 
+    # Un ticket résolu peut être rouvert ; un ticket clôturé est définitif.
+    TRANSITIONS = {
+        "OPEN": ["IN_PROGRESS", "WAITING", "RESOLVED", "CLOSED"],
+        "IN_PROGRESS": ["WAITING", "RESOLVED", "CLOSED"],
+        "WAITING": ["IN_PROGRESS", "RESOLVED", "CLOSED"],
+        "RESOLVED": ["IN_PROGRESS", "CLOSED"],
+        "CLOSED": [],
+    }
+
     unit = models.ForeignKey(Unit, on_delete=models.CASCADE, related_name="maintenance_tickets")
     category = models.ForeignKey(MaintenanceCategory, on_delete=models.SET_NULL, null=True)
 

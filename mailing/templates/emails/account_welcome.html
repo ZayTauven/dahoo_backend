@@ -1,0 +1,10 @@
+{% extends "emails/base.html" %}
+{% block title %}Bienvenue sur Dahoo{% endblock %}
+{% block preheader %}Votre compte {{ organization }} est prêt.{% endblock %}
+{% block heading %}Bienvenue sur Dahoo{% endblock %}
+{% block body %}
+<tr><td class="sc-pad" style="padding:14px 36px 0 36px;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:26px;color:#3b3d5c;mso-line-height-rule:exactly;">Bonjour {{ first_name }},</td></tr>
+<tr><td class="sc-pad" style="padding:14px 36px 0 36px;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:26px;color:#3b3d5c;mso-line-height-rule:exactly;">Un compte vient d'être créé pour vous dans l'espace de <b style="color:#12153a;">{{ organization }}</b>. Vous vous connectez avec votre numéro de téléphone, <b style="color:#12153a;">{{ phone }}</b>, et le mot de passe que l'on vous a transmis.</td></tr>
+<tr><td class="sc-pad" style="padding:14px 36px 0 36px;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:26px;color:#3b3d5c;mso-line-height-rule:exactly;">Confirmez votre adresse pour recevoir vos alertes et pouvoir récupérer votre mot de passe.</td></tr>
+{% include "emails/_button.html" with text="Confirmer mon adresse" %}
+{% endblock %}

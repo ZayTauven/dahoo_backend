@@ -15,6 +15,7 @@ from leases.models import LeaseContract
 from leases.tenants import register_tenant
 from listings.models import Listing
 from organizations.models import Membership, Organization
+from owners.owners import register_owner
 from payments.models import PaymentMethod, PaymentSchedule
 from properties.models import Building, Property, Unit
 
@@ -83,6 +84,11 @@ def make_tenant(organization, phone=None, first_name="Ibrahima", last_name="Sarr
     """Enregistre un locataire dans l'organisation et renvoie son compte (id attendu par l'API)."""
     phone = phone or f"+22176{next(_sequence):07d}"
     return register_tenant(organization, phone=phone, first_name=first_name, last_name=last_name).user
+
+
+def make_owner(organization, phone=None, first_name="Fatou", last_name="Ndiaye"):
+    phone = phone or f"+22178{next(_sequence):07d}"
+    return register_owner(organization, phone=phone, first_name=first_name, last_name=last_name)
 
 
 def make_lease(organization, unit=None, tenant=None, created_by=None, status="DRAFT"):

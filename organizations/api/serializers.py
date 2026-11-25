@@ -19,7 +19,8 @@ class OrganizationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Organization
         fields = [
-            "id", "name", "phone", "email", "address", "city", "logo", "theme",
+            "id", "name", "kind", "phone", "email", "address", "city", "logo", "theme",
+            "email_receipts", "email_due_reminders", "email_overdue_reminders", "email_owner_payouts",
             "is_active", "trial_ends_at", "access_status", "created_at",
         ]
         read_only_fields = ["logo", "is_active", "trial_ends_at", "created_at"]

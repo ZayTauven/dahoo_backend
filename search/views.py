@@ -17,12 +17,13 @@ from rest_framework.views import APIView
 
 from access.permissions import HasCapability, get_membership_capabilities
 from leases.models import LeaseContract, Tenant
+from leases.tenants import tenant_names
 from listings.models import Listing
 from maintenance.models import MaintenanceTicket
-from notifications.services import person_name
+from owners.models import Owner
 from properties.models import Property, Unit
 
-RESULT_TYPES = ["property", "unit", "tenant", "lease", "listing", "ticket"]
+RESULT_TYPES = ["property", "unit", "tenant", "lease", "owner", "listing", "ticket"]
 MIN_LENGTH = 2
 PER_TYPE = 5
 
@@ -79,9 +80,16 @@ def _leases(org, terms):
         matching(["tenant__first_name", "tenant__last_name", "tenant__phone", "unit__reference"], terms),
         organization=org,
     ).select_related("tenant", "unit")
+    name = tenant_names(org)
     for lease in rows.order_by("-start_date")[:PER_TYPE]:
         subtitle = f"{lease.unit.reference} · {lease.get_status_display()}"
-        yield "lease", lease.pk, f"Bail de {person_name(lease.tenant)}", subtitle, f"/espace/baux/{lease.pk}"
+        yield "lease", lease.pk, f"Bail de {name(lease.tenant)}", subtitle, f"/espace/baux/{lease.pk}"
+
+
+def _owners(org, terms):
+    rows = Owner.objects.filter(matching(["first_name", "last_name", "email", "user__phone"], terms), organization=org)
+    for owner in rows.select_related("user").order_by("last_name", "first_name")[:PER_TYPE]:
+        yield "owner", owner.pk, owner.full_name, owner.user.phone, f"/espace/bailleurs/{owner.pk}"
 
 
 def _listings(org, terms):
@@ -107,6 +115,7 @@ SOURCES = [
     ("unit.view", _units),
     ("tenant.view", _tenants),
     ("lease.view", _leases),
+    ("owner.view", _owners),
     ("listing.view", _listings),
     ("maintenance.ticket.view", _tickets),
 ]

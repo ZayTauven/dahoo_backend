@@ -15,7 +15,6 @@ class PaymentScheduleAdmin(admin.ModelAdmin):
     list_filter = ('schedule_type', 'is_paid', 'due_date')
     search_fields = ('lease_contract__id', 'sale_contract__id')
     ordering = ('due_date',)
-    list_editable = ('is_paid',)
     readonly_fields = ('created_at',)
 
 

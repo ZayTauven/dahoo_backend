@@ -49,7 +49,8 @@ class HasCapability(BasePermission):
         required = get_required_capability(view, request.method)
         if required is not None and required not in get_membership_capabilities(request):
             return False
-        if request.method not in SAFE_METHODS:
+        # Demander une offre reste possible en lecture seule : c'est même le moment de le faire.
+        if request.method not in SAFE_METHODS and not getattr(view, "allowed_without_subscription", False):
             ensure_write_access(organization)
         return True
 

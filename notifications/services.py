@@ -96,8 +96,9 @@ def sync_reminders(organization, *, today=None, force=False):
         return
     from analytics.dashboard import schedules_with_remaining
     from leases.models import LeaseContract
+    from leases.tenants import tenant_names
     from payments.schedules import extend_schedules
-    from subscriptions.services import ACCESS_TRIAL, get_access_status
+    from subscriptions.services import ACCESS_TRIAL, get_access_status, get_active_subscription
 
     today = today or timezone.localdate()
     # Les loyers dus d'ici un mois sont créés avant de chercher les retards.
@@ -115,6 +116,7 @@ def sync_reminders(organization, *, today=None, force=False):
         .select_related("lease_contract__tenant", "lease_contract__unit")
         .order_by("due_date")
     )
+    name = tenant_names(organization)
     # Une notification par bail (total dû), renouvelée quand une nouvelle échéance passe en retard.
     by_lease = {}
     for schedule in overdue:
@@ -127,9 +129,9 @@ def sync_reminders(organization, *, today=None, force=False):
             organization,
             capability="payment.schedule.view",
             kind="RENT_OVERDUE",
-            title=f"Loyer en retard : {person_name(lease.tenant)}",
+            title=f"Loyer en retard : {name(lease.tenant)}",
             body=f"{lease.unit.reference} · {detail}{money(total)} dus depuis le {schedules[0].due_date:%d/%m/%Y}",
-            link="/espace/echeances?etat=retard",
+            link="/espace/loyers?etat=LATE",
             dedupe_key=f"overdue:{lease.pk}:{schedules[-1].pk}",
         )
 
@@ -145,7 +147,7 @@ def sync_reminders(organization, *, today=None, force=False):
             organization,
             capability="lease.view",
             kind="LEASE_ENDING",
-            title=f"Bail de {person_name(lease.tenant)} : fin dans {days} jour{'s' if days > 1 else ''}",
+            title=f"Bail de {name(lease.tenant)} : fin dans {days} jour{'s' if days > 1 else ''}",
             body=f"{lease.unit.reference} · se termine le {lease.end_date:%d/%m/%Y}",
             link=f"/espace/baux/{lease.pk}",
             dedupe_key=f"lease-ending:{lease.pk}:{lease.end_date:%Y%m%d}",
@@ -165,13 +167,26 @@ def sync_reminders(organization, *, today=None, force=False):
                 dedupe_key=f"trial:{organization.pk}:{ends:%Y%m%d}",
             )
 
+    subscription = get_active_subscription(organization)
+    if subscription and subscription.end_date and (subscription.end_date - today).days <= TRIAL_ENDING_DAYS:
+        days = (subscription.end_date - today).days
+        notify_members(
+            organization,
+            capability="organization.update",
+            kind="SUBSCRIPTION_ENDING",
+            title=f"Votre abonnement se termine dans {days} jour{'s' if days > 1 else ''}" if days else "Votre abonnement se termine aujourd'hui",
+            body="Renouvelé avant la fin, il se prolonge sans perdre un jour.",
+            link="/espace/agence",
+            dedupe_key=f"subscription:{subscription.pk}:{subscription.end_date:%Y%m%d}",
+        )
+
 
 def sync_platform_reminders(*, today=None, force=False):
-    """Équipe Dahoo : essais qui se terminent dans les 3 jours."""
+    """Équipe Dahoo : essais et abonnements qui se terminent dans les 3 jours."""
     if _throttled("notifications:sync:platform", force):
         return
     from organizations.models import Organization
-    from subscriptions.services import ACCESS_TRIAL, get_access_status
+    from subscriptions.services import ACCESS_TRIAL, active_subscriptions, get_access_status
 
     today = today or timezone.localdate()
     now = timezone.now()
@@ -194,4 +209,17 @@ def sync_platform_reminders(*, today=None, force=False):
             body="Sans abonnement, l'agence passera en lecture seule.",
             link=f"/plateforme/agences/{organization.pk}",
             dedupe_key=f"platform-trial:{organization.pk}:{ends:%Y%m%d}",
+        )
+    ending = active_subscriptions().filter(
+        end_date__lte=today + timedelta(days=PLATFORM_TRIAL_DAYS), organization__is_active=True, organization__is_internal=False
+    )
+    for subscription in ending.select_related("organization", "plan"):
+        days = (subscription.end_date - today).days
+        notify_platform_admins(
+            kind="SUBSCRIPTION_ENDING",
+            title=f"Abonnement de {subscription.organization.name} : "
+            + (f"fin dans {days} jour{'s' if days > 1 else ''}" if days else "dernier jour"),
+            body=f"Offre {subscription.plan.name}, à renouveler.",
+            link="/plateforme/abonnements",
+            dedupe_key=f"platform-subscription:{subscription.pk}:{subscription.end_date:%Y%m%d}",
         )

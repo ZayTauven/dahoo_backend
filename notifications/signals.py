@@ -14,7 +14,8 @@ from django.dispatch import receiver
 
 from listings.models import ProspectInterest
 from maintenance.models import MaintenanceAssignment, MaintenanceTicket
-from payments.models import Payment
+from leases.tenants import tenant_names
+from payments.models import DEPOSIT_METHOD, Payment
 from public.models import DemoRequest
 
 from . import services
@@ -35,7 +36,7 @@ def muted():
         _muted.reset(token)
 
 
-def _after_commit(callback):
+def after_commit(callback):
     if _muted.get():
         return
 
@@ -69,16 +70,16 @@ def visit_requested(sender, instance, created, **kwargs):
             link=f"/espace/annonces/{listing.pk}",
         )
 
-    _after_commit(notify)
+    after_commit(notify)
 
 
 @receiver(post_save, sender=Payment)
 def payment_recorded(sender, instance, created, **kwargs):
-    if not created:
+    if not created or instance.payment_method.code == DEPOSIT_METHOD:
         return
 
     def notify():
-        payer = services.person_name(instance.payer)
+        payer = tenant_names(instance.organization)(instance.payer)
         services.notify_members(
             instance.organization,
             capability="payment.view",
@@ -89,7 +90,7 @@ def payment_recorded(sender, instance, created, **kwargs):
             exclude=instance.recorded_by,
         )
 
-    _after_commit(notify)
+    after_commit(notify)
 
 
 PRIORITY_PREFIX = {"URGENT": "Urgent · ", "HIGH": "Priorité haute · "}
@@ -112,7 +113,7 @@ def ticket_created(sender, instance, created, **kwargs):
             exclude=instance.reported_by,
         )
 
-    _after_commit(notify)
+    after_commit(notify)
 
 
 @receiver(post_save, sender=MaintenanceAssignment)
@@ -133,7 +134,7 @@ def ticket_assigned(sender, instance, created, **kwargs):
             link=f"/espace/maintenance/{ticket.pk}",
         )
 
-    _after_commit(notify)
+    after_commit(notify)
 
 
 @receiver(post_save, sender=DemoRequest)
@@ -150,4 +151,4 @@ def demo_requested(sender, instance, created, **kwargs):
             link="/plateforme/demandes",
         )
 
-    _after_commit(notify)
+    after_commit(notify)

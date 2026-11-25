@@ -1,0 +1,13 @@
+{% extends "emails/base.html" %}
+{% block title %}{{ organization }} demande l'offre {{ plan }}{% endblock %}
+{% block preheader %}{{ contact }}, {{ phone }}{% endblock %}
+{% block heading %}{{ organization }} demande l'offre {{ plan }}{% endblock %}
+{% block body %}
+<tr><td class="sc-pad" style="padding:14px 36px 0 36px;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:26px;color:#3b3d5c;mso-line-height-rule:exactly;">Bonjour {{ first_name }},</td></tr>
+<tr><td class="sc-pad" style="padding:14px 36px 0 36px;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:26px;color:#3b3d5c;mso-line-height-rule:exactly;"><b style="color:#12153a;">{{ contact }}</b> souhaite passer à l'offre <b style="color:#12153a;">{{ plan }}</b> pour {{ organization }}.</td></tr>
+{% include "emails/_facts_open.html" %}
+{% include "emails/_fact.html" with label="Téléphone" value=phone %}
+{% include "emails/_fact.html" with label="Message" value=message %}
+{% include "emails/_facts_close.html" %}
+{% include "emails/_button.html" with text="Voir la demande" %}
+{% endblock %}

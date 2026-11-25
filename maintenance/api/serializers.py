@@ -36,6 +36,7 @@ class MaintenanceTicketSerializer(serializers.ModelSerializer):
     assigned_to = serializers.IntegerField(source="current_assignee_id", read_only=True, allow_null=True, default=None)
     assigned_to_name = serializers.SerializerMethodField()
     assigned_at = serializers.DateTimeField(source="current_assigned_at", read_only=True, allow_null=True, default=None)
+    next_statuses = serializers.SerializerMethodField(help_text="Statuts possibles ensuite")
 
     class Meta:
         model = MaintenanceTicket
@@ -53,11 +54,16 @@ class MaintenanceTicketSerializer(serializers.ModelSerializer):
             "description",
             "priority",
             "status",
+            "next_statuses",
             "created_at",
             "updated_at",
         ]
         # Le statut change uniquement via l'action dédiée (capability distincte).
         read_only_fields = ["reported_by", "status", "created_at", "updated_at"]
+
+    @extend_schema_field(serializers.ListField(child=serializers.ChoiceField(choices=MaintenanceTicket.STATUS_CHOICES)))
+    def get_next_statuses(self, ticket):
+        return MaintenanceTicket.TRANSITIONS[ticket.status]
 
     @extend_schema_field(OpenApiTypes.STR)
     def get_reported_by_name(self, ticket):
@@ -72,6 +78,13 @@ class MaintenanceTicketSerializer(serializers.ModelSerializer):
 
 class TicketStatusSerializer(serializers.Serializer):
     status = serializers.ChoiceField(choices=MaintenanceTicket.STATUS_CHOICES)
+
+    def validate_status(self, value):
+        ticket = self.instance
+        if value != ticket.status and value not in MaintenanceTicket.TRANSITIONS[ticket.status]:
+            target = dict(MaintenanceTicket.STATUS_CHOICES)[value]
+            raise serializers.ValidationError(f"Transition non autorisée : {ticket.get_status_display()} → {target}.")
+        return value
 
 
 class ActiveMemberField(serializers.PrimaryKeyRelatedField):

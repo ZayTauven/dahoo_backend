@@ -1,0 +1,12 @@
+{% extends "emails/base.html" %}
+{% block title %}Votre espace est en lecture seule{% endblock %}
+{% block preheader %}Rien n'est supprimé.{% endblock %}
+{% block heading %}Votre espace est en lecture seule{% endblock %}
+{% block body %}
+<tr><td class="sc-pad" style="padding:14px 36px 0 36px;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:26px;color:#3b3d5c;mso-line-height-rule:exactly;">Bonjour {{ first_name }},</td></tr>
+<tr><td class="sc-pad" style="padding:14px 36px 0 36px;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:26px;color:#3b3d5c;mso-line-height-rule:exactly;">L'abonnement de <b style="color:#12153a;">{{ organization }}</b> s'est terminé le <b style="color:#12153a;">{{ date }}</b>. Vos biens, baux et paiements restent consultables ; la saisie revient dès le règlement.</td></tr>
+{% include "emails/_facts_open.html" %}
+{% include "emails/_fact.html" with label="Pour régler" value=instructions %}
+{% include "emails/_facts_close.html" %}
+{% include "emails/_button.html" with text="Voir mon abonnement" %}
+{% endblock %}

@@ -72,7 +72,7 @@ class InAppNotificationTests(DahooTestCase):
         sync_reminders(self.org_a, today=today, force=True)
         overdue = InAppNotification.objects.filter(user=self.admin_a, kind="RENT_OVERDUE")
         self.assertEqual(overdue.count(), 1)
-        self.assertEqual(overdue.get().link, "/espace/echeances?etat=retard")
+        self.assertEqual(overdue.get().link, "/espace/loyers?etat=LATE")
 
     def test_list_is_scoped_to_user_and_active_agency(self):
         second_org_admin = add_member(self.org_b, user=self.admin_a)

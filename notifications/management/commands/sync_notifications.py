@@ -1,15 +1,17 @@
 from django.core.management.base import BaseCommand
 
+from mailing.daily import run_daily
 from notifications.services import sync_platform_reminders, sync_reminders
 from organizations.models import Organization
 
 
 class Command(BaseCommand):
-    help = "Crée les loyers à venir des baux automatiques et les rappels (retards, fins de bail, fins d'essai) : une fois par jour."
+    help = "Crée les loyers à venir des baux automatiques et les rappels (retards, fins de bail, fins d'essai), envoie les e-mails du jour : une fois par jour."
 
     def handle(self, *args, **options):
         organizations = Organization.objects.filter(is_active=True)
         for organization in organizations:
             sync_reminders(organization, force=True)
+            run_daily(organization)
         sync_platform_reminders(force=True)
         self.stdout.write(self.style.SUCCESS(f"Rappels à jour pour {organizations.count()} agence(s)."))

@@ -94,7 +94,7 @@ class DashboardTests(DahooTestCase):
         self.assertIn(data["finance"]["overdue"]["by_tenant"][0]["tenant"], overdue["meta"])
         vacancy = by_kind["vacancy"]
         self.assertEqual(vacancy["count"], 1)
-        self.assertEqual(vacancy["title"], "1 lot libre sans annonce")
+        self.assertEqual(vacancy["title"], "1 lot libre à louer")
 
     def test_nav_counters(self):
         MaintenanceTicket.objects.create(unit=self.lease.unit, description="Fuite", priority="HIGH", reported_by=self.lease.tenant)

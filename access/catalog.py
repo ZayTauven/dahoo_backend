@@ -19,17 +19,31 @@ CAPABILITIES = {
     *_crud("building"),
     *_crud("unit"),
     "unit.change_status",
+    # Reprise d'un parc depuis un tableur (biens, lots, bailleurs, locataires, baux)
+    "portfolio.import",
     # Contrats et locataires
     *_crud("tenant"),
-    *_crud("lease", ("view", "create")),
+    *_crud("lease", ("view", "create", "update")),
     "lease.activate",
     "lease.terminate",
     "lease.complete",
     "lease.cancel",
+    # Entrée et sortie : états des lieux, caution
+    *_crud("inspection"),
+    "deposit.view",
+    "deposit.settle",
+    "deposit.cancel",
     # Paiements
     *_crud("payment", ("view", "create")),
     "payment.allocate",
+    "payment.cancel",
     *_crud("payment.schedule"),
+    *_crud("payment.reminder", ("view", "create")),
+    # Bailleurs : fiches, dépenses déduites et reversements
+    *_crud("owner"),
+    *_crud("expense"),
+    *_crud("owner.payout", ("view", "create")),
+    "owner.payout.cancel",
     # Maintenance
     *_crud("maintenance.ticket"),
     "maintenance.ticket.change_status",
@@ -39,6 +53,7 @@ CAPABILITIES = {
     *_crud("listing"),
     "listing.publish",
     "listing.unpublish",
+    "listing.close",
     "listing.interest.view",
     # Terrain
     *_crud("field_ops.guardian"),
@@ -68,7 +83,8 @@ SYSTEM_ROLES = {
     },
     "ACCOUNTANT": {
         "label": "Comptable",
-        "capabilities": _VIEW | {code for code in CAPABILITIES if code.startswith("payment.")},
+        "capabilities": _VIEW
+        | {code for code in CAPABILITIES if code.startswith(("payment.", "expense.", "owner.payout.", "deposit."))},
     },
     "VIEWER": {
         "label": "Lecture seule",
@@ -86,8 +102,14 @@ RESOURCE_LABELS = {
     "unit": "les lots",
     "tenant": "les locataires",
     "lease": "les baux",
+    "inspection": "les états des lieux",
+    "deposit": "les cautions",
     "payment": "les paiements",
     "payment.schedule": "les échéances",
+    "payment.reminder": "les relances",
+    "owner": "les bailleurs",
+    "owner.payout": "les reversements aux bailleurs",
+    "expense": "les dépenses",
     "maintenance.ticket": "les tickets de maintenance",
     "maintenance.log": "le journal des interventions",
     "listing": "les annonces",
@@ -106,15 +128,21 @@ ACTION_LABELS = {"view": "Consulter", "create": "Créer", "update": "Modifier", 
 
 SPECIAL_LABELS = {
     "unit.change_status": "Changer le statut d'un lot",
+    "portfolio.import": "Importer un parc depuis un tableur",
     "lease.activate": "Activer un bail",
     "lease.terminate": "Résilier un bail",
     "lease.complete": "Clôturer un bail",
     "lease.cancel": "Annuler un bail",
+    "deposit.settle": "Rendre une caution",
+    "deposit.cancel": "Annuler un décompte de caution",
     "payment.allocate": "Affecter un paiement aux échéances",
+    "payment.cancel": "Annuler un paiement",
+    "owner.payout.cancel": "Annuler un reversement",
     "maintenance.ticket.change_status": "Changer le statut d'un ticket",
     "maintenance.ticket.assign": "Assigner un ticket",
     "listing.publish": "Publier une annonce",
     "listing.unpublish": "Dépublier une annonce",
+    "listing.close": "Clôturer une annonce",
 }
 
 

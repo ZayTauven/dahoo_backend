@@ -23,6 +23,7 @@ from .factories import (
     make_listing,
     make_tenant,
     make_unit,
+    make_owner,
     make_user,
     results,
 )
@@ -116,7 +117,7 @@ class PublicPrivacyTests(PublicTestCase):
 
     def setUp(self):
         super().setUp()
-        self.owner = make_user(phone="+221770001111")
+        self.owner = make_owner(self.org_a, phone="+221770001111")
         unit = make_unit(self.org_a, city="Dakar", latitude=Decimal("14.716677"), longitude=Decimal("-17.467686"))
         Property.objects.filter(pk=unit.building.property_id).update(owner=self.owner, address="12 rue Secrète")
         tenant = make_tenant(self.org_a, phone="+221770002222")

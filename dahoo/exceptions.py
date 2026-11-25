@@ -1,5 +1,5 @@
 from django.core.exceptions import ValidationError as DjangoValidationError
-from django.db.models import ProtectedError
+from django.db.models import ProtectedError, RestrictedError
 from django.http import Http404
 from rest_framework import status
 from rest_framework.exceptions import APIException, NotFound, ValidationError
@@ -13,7 +13,11 @@ class Conflict(APIException):
 
 
 PROTECTED_MESSAGES = {
-    "LeaseContract": "des baux y sont rattachés. Terminez ou annulez-les d'abord.",
+    "LeaseContract": "des baux y sont rattachés, même terminés : leur historique doit être conservé.",
+    "Expense": "des dépenses y sont rattachées.",
+    "OwnerPayout": "des reversements y sont rattachés.",
+    "Property": "des biens y sont rattachés.",
+    "PaymentAllocation": "un paiement y est affecté. Annulez d'abord le paiement.",
     "SaleContract": "des ventes y sont rattachées.",
     "Payment": "des paiements y sont rattachés.",
     "MaintenanceTicket": "des tickets de maintenance y sont rattachés.",
@@ -22,7 +26,8 @@ PROTECTED_MESSAGES = {
 
 def protected_message(exc):
     """« Suppression impossible : des baux y sont rattachés… » selon le premier objet qui bloque."""
-    blocking = next(iter(exc.protected_objects), None)
+    objects = exc.protected_objects if isinstance(exc, ProtectedError) else exc.restricted_objects
+    blocking = next(iter(objects), None)
     reason = PROTECTED_MESSAGES.get(type(blocking).__name__, "d'autres données y sont rattachées.")
     return f"Suppression impossible : {reason}"
 
@@ -36,7 +41,7 @@ def api_exception_handler(exc, context):
     if isinstance(exc, DjangoValidationError):
         detail = exc.message_dict if hasattr(exc, "error_dict") else {"detail": exc.messages}
         exc = ValidationError(detail)
-    elif isinstance(exc, ProtectedError):
+    elif isinstance(exc, (ProtectedError, RestrictedError)):
         exc = Conflict(protected_message(exc))
     elif isinstance(exc, Http404):
         exc = NotFound("Élément introuvable.")

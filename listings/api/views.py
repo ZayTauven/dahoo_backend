@@ -14,6 +14,7 @@ from rest_framework.views import APIView
 from dahoo.throttling import AnonRateThrottle, ScopedRateThrottle
 from listings.models import Listing, ListingPhoto, ProspectInterest
 from listings.photos import MAX_PHOTOS_PER_LISTING, with_cover
+from listings.services import check_publishable
 from organizations.scoping import OrganizationScopedMixin
 from public.visibility import public_listings
 
@@ -83,6 +84,7 @@ class ListingPublishAPIView(ListingStatusAPIView):
 	target_status = "PUBLISHED"
 
 	def apply(self, listing):
+		check_publishable(listing)
 		super().apply(listing)
 		listing.published_at = timezone.now()
 
@@ -91,6 +93,14 @@ class ListingUnpublishAPIView(ListingStatusAPIView):
 	required_capability = "listing.unpublish"
 	allowed_from = ("PUBLISHED",)
 	target_status = "SUSPENDED"
+
+
+class ListingCloseAPIView(ListingStatusAPIView):
+	"""Bien loué ou vendu hors bail : l'annonce est close définitivement."""
+
+	required_capability = "listing.close"
+	allowed_from = ("DRAFT", "PUBLISHED", "SUSPENDED")
+	target_status = "CLOSED"
 
 
 class ListingPhotoCapabilityMixin(OrganizationScopedMixin):

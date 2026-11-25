@@ -17,7 +17,9 @@ from payments.schedules import disable_auto_schedules, enable_auto_schedules, pr
 from .serializers import (
     AutoSchedulesPreviewSerializer,
     AutoSchedulesSerializer,
+    LeaseActivationSerializer,
     LeaseContractSerializer,
+    LeaseEndSerializer,
     LeaseWithSchedulesSerializer,
     TenantSerializer,
 )
@@ -52,10 +54,13 @@ class LeaseListCreateAPIView(OrganizationScopedMixin, generics.ListCreateAPIView
         serializer.save(organization=self.organization, created_by=self.request.user, status="DRAFT")
 
 
-class LeaseDetailAPIView(OrganizationScopedMixin, generics.RetrieveAPIView):
+class LeaseDetailAPIView(OrganizationScopedMixin, generics.RetrieveUpdateAPIView):
+    """Un brouillon se corrige librement ; un bail actif ne change que de loyer, d'échéance ou de fin (avenant)."""
+
     capability_resource = "lease"
     queryset = leases_with_labels()
     serializer_class = LeaseContractSerializer
+    http_method_names = ["get", "patch", "head", "options"]
 
 
 class LeaseTransitionAPIView(OrganizationScopedMixin, APIView):
@@ -71,10 +76,10 @@ class LeaseTransitionAPIView(OrganizationScopedMixin, APIView):
 class LeaseActivateAPIView(OrganizationScopedMixin, APIView):
     required_capability = "lease.activate"
 
-    @extend_schema(request=AutoSchedulesSerializer, responses=LeaseWithSchedulesSerializer)
+    @extend_schema(request=LeaseActivationSerializer, responses=LeaseWithSchedulesSerializer)
     def post(self, request, pk):
         contract = get_object_or_404(LeaseContract, pk=pk, organization=self.organization)
-        options = AutoSchedulesSerializer(data=request.data, context={"lease": contract})
+        options = LeaseActivationSerializer(data=request.data, context={"lease": contract})
         options.is_valid(raise_exception=True)
         contract, created = activate_lease(contract, **options.validated_data)
         contract.created_schedules = len(created)
@@ -115,12 +120,24 @@ class LeaseAutoSchedulesAPIView(OrganizationScopedMixin, APIView):
         return Response(LeaseContractSerializer(contract, context={"request": request}).data)
 
 
-class LeaseTerminateAPIView(LeaseTransitionAPIView):
+class LeaseEndAPIView(LeaseTransitionAPIView):
+    """Fin de bail : la date de départ est aujourd'hui, sauf indication contraire."""
+
+    @extend_schema(request=LeaseEndSerializer, responses=LeaseContractSerializer)
+    def post(self, request, pk):
+        contract = get_object_or_404(LeaseContract, pk=pk, organization=self.organization)
+        options = LeaseEndSerializer(data=request.data, context={"lease": contract})
+        options.is_valid(raise_exception=True)
+        contract = change_lease_status(contract, self.target_status, **options.validated_data)
+        return Response(LeaseContractSerializer(contract, context={"request": request}).data)
+
+
+class LeaseTerminateAPIView(LeaseEndAPIView):
     required_capability = "lease.terminate"
     target_status = "TERMINATED"
 
 
-class LeaseCompleteAPIView(LeaseTransitionAPIView):
+class LeaseCompleteAPIView(LeaseEndAPIView):
     required_capability = "lease.complete"
     target_status = "COMPLETED"
 

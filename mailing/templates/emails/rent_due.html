@@ -1,0 +1,15 @@
+{% extends "emails/base.html" %}
+{% block title %}Votre loyer est à régler le {{ date }}{% endblock %}
+{% block preheader %}{{ amount }} pour {{ unit }}, {{ property }}.{% endblock %}
+{% block heading %}Votre loyer est à régler le {{ date }}{% endblock %}
+{% block body %}
+<tr><td class="sc-pad" style="padding:14px 36px 0 36px;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:26px;color:#3b3d5c;mso-line-height-rule:exactly;">Bonjour {{ name }},</td></tr>
+<tr><td class="sc-pad" style="padding:14px 36px 0 36px;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:26px;color:#3b3d5c;mso-line-height-rule:exactly;">Un simple rappel : votre prochain loyer est attendu le <b style="color:#12153a;">{{ date }}</b>.</td></tr>
+{% include "emails/_facts_open.html" %}
+{% include "emails/_fact.html" with label="Logement" value=unit %}
+{% include "emails/_fact.html" with label="Bien" value=property %}
+{% include "emails/_fact.html" with label="Montant" value=amount %}
+{% include "emails/_fact.html" with label="À régler le" value=date %}
+{% include "emails/_facts_close.html" %}
+<tr><td class="sc-pad" style="padding:24px 36px 0 36px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="width:100%;background-color:#f6f2ed;border-radius:6px;"><tr><td style="padding:18px 22px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:24px;color:#3b3d5c;mso-line-height-rule:exactly;">Si vous avez déjà réglé, merci de ne pas tenir compte de ce message.</td></tr></table></td></tr>
+{% endblock %}

@@ -31,4 +31,8 @@ def add_member(organization, role, *, phone, existing_user=None, first_name=None
         user = User.objects.create_user(
             phone=phone, password=password, first_name=first_name, last_name=last_name, email=email or None
         )
+        # Import ici : mailing dépend des organisations.
+        from mailing.accounts import send_welcome
+
+        send_welcome(user, organization)
     return Membership.objects.create(user=user, organization=organization, role=role)

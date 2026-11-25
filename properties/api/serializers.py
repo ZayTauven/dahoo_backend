@@ -1,14 +1,15 @@
-from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
+from organizations.scoping import OrganizationScopedRelatedField
+from owners.models import Owner
 from properties.models import Building, Property, Unit
-
-User = get_user_model()
+from properties.services import check_status_change
 
 
 class PropertySerializer(serializers.ModelSerializer):
-    # Le bailleur est un compte existant ; le rattacher n'expose que son identifiant.
-    owner = serializers.PrimaryKeyRelatedField(queryset=User.objects.all(), required=False, allow_null=True)
+    # Bailleur de l'agence (/owners/) ; vide si l'agence possède le bien.
+    owner = OrganizationScopedRelatedField(queryset=Owner.objects.all(), required=False, allow_null=True)
+    owner_name = serializers.CharField(source="owner.full_name", read_only=True, default="")
     # Compteurs annotés par la vue (0 sur la réponse de création).
     buildings_count = serializers.IntegerField(read_only=True, default=0)
     units_count = serializers.IntegerField(read_only=True, default=0)
@@ -17,7 +18,7 @@ class PropertySerializer(serializers.ModelSerializer):
     class Meta:
         model = Property
         fields = [
-            "id", "name", "owner", "address", "city", "neighborhood", "latitude", "longitude",
+            "id", "name", "owner", "owner_name", "commission_rate", "address", "city", "neighborhood", "latitude", "longitude",
             "buildings_count", "units_count", "occupied_units_count", "created_at",
         ]
         read_only_fields = ["created_at"]
@@ -48,6 +49,12 @@ class UnitSerializer(serializers.ModelSerializer):
         read_only_fields = ["building"]
         extra_kwargs = {"surface": {"min_value": 0}}
 
+    def validate_status(self, value):
+        return check_status_change(self.instance, value)
+
 
 class UnitStatusSerializer(serializers.Serializer):
     status = serializers.ChoiceField(choices=Unit.STATUS_CHOICES)
+
+    def validate_status(self, value):
+        return check_status_change(self.instance, value)

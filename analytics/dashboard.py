@@ -15,6 +15,7 @@ from django.db.models.functions import Coalesce, TruncMonth
 from django.utils import timezone
 
 from leases.models import LeaseContract
+from leases.tenants import tenant_names
 from listings.models import Listing, ProspectInterest
 from listings.photos import cover_url
 from maintenance.models import MaintenanceTicket
@@ -49,14 +50,7 @@ def _amount(value):
     return value if value is not None else ZERO
 
 
-def _tenant_name(user):
-    if user is None:
-        return ""
-    name = f"{user.first_name} {user.last_name}".strip()
-    return name or user.phone
-
-
-def _schedule_row(schedule, today):
+def _schedule_row(schedule, today, name):
     lease = schedule.lease_contract
     return {
         "id": schedule.pk,
@@ -64,7 +58,7 @@ def _schedule_row(schedule, today):
         "amount_due": schedule.amount_due,
         "remaining": schedule.remaining,
         "days_late": max(0, (today - schedule.due_date).days),
-        "tenant": _tenant_name(lease.tenant) if lease else "",
+        "tenant": name(lease.tenant) if lease else "",
         "unit": lease.unit.reference if lease else "",
         "lease_id": lease.pk if lease else None,
     }
@@ -108,6 +102,7 @@ def portfolio_section(organization):
 
 
 def leases_section(organization, today):
+    name = tenant_names(organization)
     leases = LeaseContract.objects.filter(organization=organization)
     active = leases.filter(status="ACTIVE")
     horizon = today + timedelta(days=90)
@@ -124,7 +119,7 @@ def leases_section(organization, today):
         "ending_soon": [
             {
                 "id": lease.pk,
-                "tenant": _tenant_name(lease.tenant),
+                "tenant": name(lease.tenant),
                 "unit": lease.unit.reference,
                 "end_date": lease.end_date,
                 "days_left": (lease.end_date - today).days,
@@ -135,7 +130,7 @@ def leases_section(organization, today):
     }
 
 
-def overdue_by_tenant(overdue, today):
+def overdue_by_tenant(overdue, today, name):
     """Échéances en retard regroupées par bail : un locataire par ligne, les plus gros montants d'abord."""
     groups = {}
     for schedule in overdue:
@@ -143,7 +138,7 @@ def overdue_by_tenant(overdue, today):
         key = lease.pk if lease else None
         group = groups.setdefault(key, {
             "lease_id": key,
-            "tenant": _tenant_name(lease.tenant) if lease else "",
+            "tenant": name(lease.tenant) if lease else "",
             "unit": lease.unit.reference if lease else "",
             "count": 0,
             "amount": ZERO,
@@ -156,10 +151,11 @@ def overdue_by_tenant(overdue, today):
 
 
 def finance_section(organization, today, months):
+    name = tenant_names(organization)
     keys = month_keys(today, months)
     start = keys[0]
     schedules = schedules_with_remaining(organization)
-    payments = Payment.objects.filter(organization=organization)
+    payments = Payment.objects.cash().filter(organization=organization)
 
     expected = {
         _key(row["month"]): row["total"]
@@ -233,10 +229,10 @@ def finance_section(organization, today, months):
             "count": len(overdue),
             "tenants": len({s.lease_contract.tenant_id for s in overdue if s.lease_contract}),
             "aging": aging,
-            "by_tenant": overdue_by_tenant(overdue, today)[:6],
+            "by_tenant": overdue_by_tenant(overdue, today, name)[:6],
         },
-        "late": [_schedule_row(s, today) for s in overdue[:6]],
-        "upcoming": [_schedule_row(s, today) for s in upcoming],
+        "late": [_schedule_row(s, today, name) for s in overdue[:6]],
+        "upcoming": [_schedule_row(s, today, name) for s in upcoming],
         "upcoming_total": _amount(upcoming_total["total"]),
         "upcoming_count": upcoming_total["count"],
         "by_method": [
@@ -250,7 +246,7 @@ def finance_section(organization, today, months):
                 "amount": payment.amount_paid,
                 "method": payment.payment_method.label,
                 "method_code": payment.payment_method.code,
-                "payer": _tenant_name(payment.payer),
+                "payer": name(payment.payer),
             }
             for payment in recent
         ],
@@ -404,7 +400,7 @@ def insights(data, today):
             "overdue", "danger",
             f"{_plural(overdue['count'], 'échéance')} en retard",
             _names([group["tenant"] for group in overdue["by_tenant"]]),
-            "/espace/echeances?etat=retard",
+            "/espace/loyers?etat=LATE",
             amount=overdue["amount"],
         )
     if maintenance and maintenance["urgent_open"]:
@@ -433,17 +429,7 @@ def insights(data, today):
             f"30 derniers jours, sur {_plural(listings['published'], 'annonce')}",
             "/espace/annonces", count=count,
         )
-    if listings and listings["unlisted_count"]:
-        # Seuls les lots libres sans annonce demandent une action : les autres sont déjà sur le portail.
-        count = listings["unlisted_count"]
-        first = listings["unlisted_units"][0]
-        add(
-            "vacancy", "info",
-            f"{_plural(count, 'lot libre', 'lots libres')} sans annonce",
-            "Publier une annonce sur le portail",
-            f"/espace/annonces?lot={first['id']}", count=count,
-        )
-    elif not listings and portfolio and portfolio["units_by_status"].get("FREE"):
+    if portfolio and portfolio["units_by_status"].get("FREE"):
         count = portfolio["units_by_status"]["FREE"]
         add("vacancy", "info", f"{_plural(count, 'lot libre', 'lots libres')} à louer", "Voir les biens", "/espace/biens", count=count)
     return items

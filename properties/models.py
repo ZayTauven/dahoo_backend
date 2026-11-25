@@ -1,7 +1,5 @@
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
-from django.conf import settings
-
-User = settings.AUTH_USER_MODEL
 
 
 class Property(models.Model):
@@ -9,9 +7,14 @@ class Property(models.Model):
         "organizations.Organization", on_delete=models.CASCADE, related_name="properties"
     )
     name = models.CharField(max_length=255)
-    # Propriétaire (bailleur) du bien, facultatif : l'organisation peut gérer pour le compte d'un tiers.
+    # Bailleur pour le compte duquel le bien est géré ; vide si l'organisation en est propriétaire.
     owner = models.ForeignKey(
-        User, on_delete=models.SET_NULL, null=True, blank=True, related_name="owned_properties"
+        "owners.Owner", on_delete=models.PROTECT, null=True, blank=True, related_name="properties"
+    )
+    # Mandat de gestion : commission de l'agence, en % des loyers encaissés. Le taux du jour est figé
+    # sur chaque encaissement : le changer ne réécrit pas les relevés passés.
+    commission_rate = models.DecimalField(
+        max_digits=5, decimal_places=2, default=0, validators=[MinValueValidator(0), MaxValueValidator(100)]
     )
     address = models.TextField()
     city = models.CharField(max_length=100)

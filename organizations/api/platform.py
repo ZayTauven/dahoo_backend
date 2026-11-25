@@ -8,17 +8,21 @@ from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_field
 from rest_framework import generics, serializers, status
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from access.models import Role
 from access.permissions import IsPlatformAdmin
+from mailing.accounts import send_password_temporary
 from organizations.models import Membership, Organization
 from organizations.platform_dashboard import build_platform_dashboard
 from organizations.services import add_member, validate_new_member
 from public.models import DemoRequest
 from subscriptions.models import Subscription, SubscriptionPlan
 from subscriptions.services import get_access_status
+from users.api.serializers import TemporaryPasswordSerializer
+from users.passwords import reset_password
 
 from .serializers import MembershipSerializer, NewMemberFieldsMixin
 
@@ -35,7 +39,7 @@ class PlatformOrganizationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Organization
         fields = [
-            "id", "name", "phone", "email", "address", "city",
+            "id", "name", "kind", "phone", "email", "address", "city",
             "is_active", "is_internal", "trial_ends_at", "access_status", "member_count", "created_at",
         ]
         read_only_fields = ["created_at"]
@@ -71,10 +75,11 @@ class PlatformOrganizationCreateSerializer(PlatformOrganizationSerializer):
 
 class PlatformSubscriptionSerializer(serializers.ModelSerializer):
     plan = serializers.PrimaryKeyRelatedField(queryset=SubscriptionPlan.objects.all())
+    state = serializers.ChoiceField(choices=Subscription.STATES, read_only=True)
 
     class Meta:
         model = Subscription
-        fields = ["id", "organization", "plan", "status", "start_date", "end_date", "created_at"]
+        fields = ["id", "organization", "plan", "status", "state", "price", "start_date", "end_date", "created_at"]
         read_only_fields = ["organization", "created_at"]
 
     def validate(self, attrs):
@@ -82,6 +87,9 @@ class PlatformSubscriptionSerializer(serializers.ModelSerializer):
         end = attrs.get("end_date", getattr(self.instance, "end_date", None))
         if start and end and end < start:
             raise serializers.ValidationError({"end_date": "La fin doit être postérieure au début."})
+        # Changer d'offre à la main reprend le prix de la nouvelle, sauf prix convenu saisi.
+        if self.instance and "plan" in attrs and attrs["plan"].pk != self.instance.plan_id and attrs.get("price") is None:
+            attrs["price"] = attrs["plan"].price
         return attrs
 
 
@@ -244,6 +252,21 @@ class PlatformOrganizationMembersAPIView(generics.ListAPIView):
 
     def get_queryset(self):
         return Membership.objects.filter(organization_id=self.kwargs["pk"]).select_related("user", "role").order_by("id")
+
+
+class PlatformMemberResetPasswordAPIView(APIView):
+    """Mot de passe oublié d'un membre d'agence, traité par l'équipe Dahoo (jamais pour un compte Dahoo)."""
+
+    permission_classes = [IsPlatformAdmin]
+
+    @extend_schema(request=None, responses=TemporaryPasswordSerializer)
+    def post(self, request, pk, member_pk):
+        membership = get_object_or_404(Membership.objects.select_related("user"), pk=member_pk, organization_id=pk)
+        if membership.user.is_staff or membership.user.is_superuser:
+            raise PermissionDenied("Le mot de passe d'un compte Dahoo ne se réinitialise pas ici.")
+        password = reset_password(membership.user)
+        send_password_temporary(membership.user, "L'équipe Dahoo")
+        return Response({"temporary_password": password})
 
 
 class PlatformSubscriptionListCreateAPIView(generics.ListCreateAPIView):

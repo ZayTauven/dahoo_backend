@@ -1,0 +1,14 @@
+{% extends "emails/base.html" %}
+{% block title %}Un reversement vous a été adressé{% endblock %}
+{% block preheader %}{{ amount }}, le {{ date }}.{% endblock %}
+{% block heading %}Un reversement vous a été adressé{% endblock %}
+{% block body %}
+<tr><td class="sc-pad" style="padding:14px 36px 0 36px;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:26px;color:#3b3d5c;mso-line-height-rule:exactly;">Bonjour {{ name }},</td></tr>
+<tr><td class="sc-pad" style="padding:14px 36px 0 36px;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:26px;color:#3b3d5c;mso-line-height-rule:exactly;">Nous vous avons adressé le reversement suivant.</td></tr>
+{% include "emails/_facts_open.html" %}
+{% include "emails/_fact.html" with label="Montant" value=amount %}
+{% include "emails/_fact.html" with label="Date" value=date %}
+{% include "emails/_fact.html" with label="Moyen" value=channel %}
+{% include "emails/_fact.html" with label="Référence" value=reference %}
+{% include "emails/_facts_close.html" %}
+{% endblock %}

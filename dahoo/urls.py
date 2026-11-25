@@ -18,6 +18,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
+from documents.views import SharedDocumentAPIView
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
 urlpatterns = [
@@ -31,6 +32,12 @@ urlpatterns = [
     path("api/v1/leases/", include("leases.api.urls")),
     path("api/v1/properties/", include("properties.api.urls")),
     path("api/v1/payments/", include("payments.api.urls")),
+    path("api/v1/inspections/", include("inspections.api.urls")),
+    path("api/v1/deposits/", include("deposits.api.urls")),
+    path("api/v1/owners/", include("owners.api.urls")),
+    path("api/v1/imports/", include("imports.api.urls")),
+    path("api/v1/emails/", include("mailing.api.urls")),
+    path("api/v1/documents/<str:token>/", SharedDocumentAPIView.as_view()),
     path("api/v1/maintenance/", include("maintenance.api.urls")),
     path("api/v1/listings/", include("listings.api.urls")),
     path("api/v1/subscriptions/", include("subscriptions.api.urls")),

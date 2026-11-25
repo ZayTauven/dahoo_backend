@@ -18,6 +18,7 @@ from organizations.models import Membership, Organization
 from payments.models import Payment
 from properties.models import Unit
 from public.models import DemoRequest
+from subscriptions.billing import monthly_value
 from subscriptions.models import Subscription
 from subscriptions.services import ACCESS_ACTIVE, ACCESS_EXPIRED, ACCESS_TRIAL, get_access_status
 
@@ -27,18 +28,6 @@ TRIAL_WARNING_DAYS = 14
 
 def _key(value):
     return timezone.localtime(value).strftime("%Y-%m") if timezone.is_aware(value) else value.strftime("%Y-%m")
-
-
-def _monthly_equivalent(subscription):
-    """Revenu mensuel d'un abonnement : prix mensuel, ou annuel / 12 (les commissions ne sont pas prévisibles)."""
-    plan = subscription.plan
-    if plan.price is None:
-        return ZERO
-    if plan.billing_type == "MONTHLY":
-        return plan.price
-    if plan.billing_type == "YEARLY":
-        return (plan.price / 12).quantize(Decimal("1"))
-    return ZERO
 
 
 def _status(organization):
@@ -97,11 +86,11 @@ def build_platform_dashboard(*, months=12, request=None):
     for subscription in active_subscriptions:
         entry = by_plan.setdefault(subscription.plan.name, {"plan": subscription.plan.name, "count": 0, "mrr": ZERO})
         entry["count"] += 1
-        entry["mrr"] += _monthly_equivalent(subscription)
+        entry["mrr"] += monthly_value(subscription)
 
     published = Listing.objects.filter(status="PUBLISHED")
     interests = ProspectInterest.objects.all()
-    payments_30d = Payment.objects.filter(payment_date__gte=now - timedelta(days=30))
+    payments_30d = Payment.objects.cash().filter(payment_date__gte=now - timedelta(days=30))
 
     top = sorted(agencies, key=lambda org: (org.listings_published, org.units_total, org.members), reverse=True)[:6]
 
@@ -131,7 +120,7 @@ def build_platform_dashboard(*, months=12, request=None):
         ],
         "subscriptions": {
             "active": len(active_subscriptions),
-            "mrr": sum((_monthly_equivalent(s) for s in active_subscriptions), ZERO),
+            "mrr": sum((monthly_value(s) for s in active_subscriptions), ZERO),
             "by_plan": sorted(by_plan.values(), key=lambda entry: -entry["count"]),
         },
         "demo_requests": {

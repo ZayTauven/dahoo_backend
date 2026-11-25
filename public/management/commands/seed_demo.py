@@ -21,9 +21,12 @@ from organizations.services import add_member
 from properties.models import Building, Property, Unit
 from users.models import User
 
+from ._demo_billing import seed_billing
 from ._demo_history import seed_history, seed_upcoming
+from ._demo_moveouts import seed_moveouts
 from ._demo_notifications import seed_notifications
 from ._demo_operations import seed_operations, seed_reference_data
+from ._demo_owners import seed_owners, seed_recent_payments
 from ._demo_platform import seed_platform
 
 DEMO_PASSWORD = "DahooDemo!2026"
@@ -299,7 +302,11 @@ class Command(BaseCommand):
         seed_operations(teranga, teranga_admin)
         seed_history(teranga, teranga_admin)
         seed_upcoming(teranga)
+        seed_recent_payments(teranga, teranga_admin)
+        seed_owners(teranga, teranga_admin)
+        seed_moveouts(teranga, teranga_admin, photos)
         seed_platform()
+        seed_billing()
 
         total = Listing.objects.filter(status="PUBLISHED").count()
         self.stdout.write(self.style.SUCCESS(

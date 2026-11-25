@@ -15,7 +15,14 @@ def default_trial_end():
 # Toutes les données métier lui appartiennent et sont cloisonnées par organisation.
 # Un propriétaire indépendant est simplement une organisation d'une seule personne.
 class Organization(models.Model):
+    KINDS = [
+        ("AGENCY", "Agence ou gestionnaire"),
+        ("OWNER", "Propriétaire"),
+    ]
+
     name = models.CharField(max_length=200)
+    # Un propriétaire gère ses propres biens : ni bailleurs, ni commissions, ni reversements.
+    kind = models.CharField(max_length=10, choices=KINDS, default="AGENCY")
     phone = models.CharField(max_length=30, blank=True)
     email = models.EmailField(blank=True)
     address = models.TextField(blank=True)
@@ -25,6 +32,12 @@ class Organization(models.Model):
     # Apparence de l'espace agence choisie par ses administrateurs (personnaliseur) : couleur d'accent,
     # schémas de la barre latérale et de l'en-tête, densité... Validé par organizations/theme.py.
     theme = models.JSONField(default=dict, blank=True)
+
+    # E-mails envoyés automatiquement au nom de l'agence : rien ne part sans son accord.
+    email_receipts = models.BooleanField("quittance ou reçu après chaque encaissement", default=False)
+    email_due_reminders = models.BooleanField("rappel trois jours avant l'échéance", default=False)
+    email_overdue_reminders = models.BooleanField("relance à 5 puis 15 jours de retard", default=False)
+    email_owner_payouts = models.BooleanField("avis de reversement au bailleur", default=False)
 
     is_active = models.BooleanField(default=True)
     # Organisation interne de Dahoo (l'éditeur utilise aussi l'application comme une agence) :

@@ -17,6 +17,7 @@ from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 
 from analytics.dashboard import add_months
@@ -58,6 +59,36 @@ def lease_periods(lease, *, until):
             amount = (full_amount * share).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
         yield Period(starts, ends, due_date, amount, prorated)
         starts = ends
+
+
+def schedule_period(schedule):
+    """(premier jour, dernier jour) de la période que règle une échéance de loyer."""
+    lease = schedule.lease_contract
+    months = period_months(lease)
+    starts = lease.start_date.replace(day=1)
+    if schedule.due_date >= starts:
+        elapsed = (schedule.due_date.year - starts.year) * 12 + schedule.due_date.month - starts.month
+        starts = add_months(starts, elapsed // months * months)
+    else:
+        starts = schedule.due_date.replace(day=1)
+    last = add_months(starts, months) - timedelta(days=1)
+    first = max(starts, lease.start_date) if lease.start_date <= last else starts
+    if lease.end_date and first <= lease.end_date < last:
+        last = lease.end_date
+    return first, last
+
+
+def create_deposit(lease):
+    """Échéance de la caution, due à l'entrée dans les lieux (une seule par bail)."""
+    if lease.deposit_amount <= 0 or lease.schedules.filter(schedule_type="DEPOSIT").exists():
+        return None
+    return PaymentSchedule.objects.create(
+        organization_id=lease.organization_id,
+        lease_contract=lease,
+        schedule_type="DEPOSIT",
+        due_date=lease.start_date,
+        amount_due=lease.deposit_amount,
+    )
 
 
 def pending_periods(lease, *, schedules_from, today=None):
@@ -126,13 +157,19 @@ def extend_schedules(organization, *, today=None):
 
 
 def drop_future_schedules(lease, *, today=None):
-    """À la fin anticipée d'un bail automatique : supprime les loyers à venir qu'aucun paiement ne touche."""
-    if not lease.auto_schedules:
-        return 0
+    """
+    À la fin anticipée d'un bail : supprime la caution jamais versée et, si l'échéancier est automatique,
+    les loyers à venir qu'aucun paiement ne touche.
+    """
     today = today or timezone.localdate()
-    deleted, _ = lease.schedules.filter(
-        schedule_type="RENT", due_date__gt=today, allocations__isnull=True
-    ).delete()
+    obsolete = Q(schedule_type="DEPOSIT")
+    if lease.auto_schedules:
+        obsolete |= Q(schedule_type="RENT", due_date__gt=today)
+    dropped = lease.schedules.filter(obsolete, allocations__isnull=True)
+    if dropped.filter(schedule_type="DEPOSIT").exists():
+        lease.deposit_unpaid = True
+        lease.save(update_fields=["deposit_unpaid"])
+    deleted, _ = dropped.delete()
     return deleted
 
 

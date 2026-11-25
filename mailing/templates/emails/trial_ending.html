@@ -1,0 +1,9 @@
+{% extends "emails/base.html" %}
+{% block title %}Votre essai se termine le {{ date }}{% endblock %}
+{% block preheader %}Gardez la main sur votre espace.{% endblock %}
+{% block heading %}Votre essai se termine le {{ date }}{% endblock %}
+{% block body %}
+<tr><td class="sc-pad" style="padding:14px 36px 0 36px;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:26px;color:#3b3d5c;mso-line-height-rule:exactly;">Bonjour {{ first_name }},</td></tr>
+<tr><td class="sc-pad" style="padding:14px 36px 0 36px;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:26px;color:#3b3d5c;mso-line-height-rule:exactly;">L'essai de <b style="color:#12153a;">{{ organization }}</b> se termine le <b style="color:#12153a;">{{ date }}</b>. Sans abonnement, l'espace passera en lecture seule : vos données restent consultables et rien n'est supprimé.</td></tr>
+{% include "emails/_button.html" with text="Voir mon abonnement" %}
+{% endblock %}
